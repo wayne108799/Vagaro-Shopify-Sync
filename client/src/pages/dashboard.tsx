@@ -109,7 +109,7 @@ export default function Dashboard() {
   }, [stylists, selectedStylistId]);
 
   const selectedStylist = stylists.find(s => s.id === selectedStylistId);
-  const isConnectedVagaro = !!(settings?.vagaroClientId && settings?.vagaroClientSecret);
+  const isConnectedVagaro = !!(settings?.vagaroClientId && settings?.vagaroClientSecret && settings?.vagaroMerchantId);
   const isConnectedShopify = !!(settings?.shopifyStoreUrl && settings?.shopifyAccessToken);
 
   const todayOrders = orders.filter(o => {
@@ -525,6 +525,18 @@ export default function Dashboard() {
                             <SelectItem value="au">Australia (au)</SelectItem>
                           </SelectContent>
                         </Select>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label>Merchant ID</Label>
+                        <Input 
+                          placeholder="Enter your Vagaro Merchant ID" 
+                          value={settings.vagaroMerchantId || ""}
+                          onChange={(e) => updateSettingsMutation.mutate({ vagaroMerchantId: e.target.value })}
+                          data-testid="input-vagaro-merchant-id"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Your Merchant ID is required to sync stylists from Vagaro
+                        </p>
                       </div>
                       {isConnectedVagaro && (
                         <div className="pt-2">

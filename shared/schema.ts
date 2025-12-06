@@ -55,6 +55,7 @@ export const settings = pgTable("settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   vagaroClientId: text("vagaro_client_id"),
   vagaroClientSecret: text("vagaro_client_secret"),
+  vagaroMerchantId: text("vagaro_merchant_id"),
   vagaroRegion: text("vagaro_region").default("us"),
   shopifyStoreUrl: text("shopify_store_url"),
   shopifyAccessToken: text("shopify_access_token"),

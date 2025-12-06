@@ -31,23 +31,29 @@ export class VagaroClient {
   private baseUrl: string;
   private clientId: string;
   private clientSecret: string;
+  private merchantId: string;
   private accessToken: string | null = null;
 
   constructor(settings: {
     vagaroClientId: string | null;
     vagaroClientSecret: string | null;
+    vagaroMerchantId: string | null;
     vagaroRegion: string | null;
   }) {
     if (!settings.vagaroClientId || !settings.vagaroClientSecret) {
       throw new Error("Vagaro credentials not configured");
+    }
+    if (!settings.vagaroMerchantId) {
+      throw new Error("Vagaro Merchant ID not configured");
     }
     
     const region = settings.vagaroRegion || "us";
     this.baseUrl = `https://api.vagaro.com/${region}/api/v2`;
     this.clientId = settings.vagaroClientId;
     this.clientSecret = settings.vagaroClientSecret;
+    this.merchantId = settings.vagaroMerchantId;
     
-    console.log(`[Vagaro] Initialized client with region: ${region}, baseUrl: ${this.baseUrl}`);
+    console.log(`[Vagaro] Initialized client with region: ${region}, merchantId: ${this.merchantId}, baseUrl: ${this.baseUrl}`);
   }
 
   async getAccessToken(): Promise<string> {
@@ -93,7 +99,7 @@ export class VagaroClient {
   async getEmployees(): Promise<VagaroEmployee[]> {
     const token = await this.getAccessToken();
     
-    const url = `${this.baseUrl}/merchants/employees`;
+    const url = `${this.baseUrl}/merchants/${this.merchantId}/employees`;
     console.log(`[Vagaro] Fetching employees from: ${url}`);
 
     const response = await fetch(url, {

@@ -101,6 +101,7 @@ export async function registerRoutes(
         return res.json({
           vagaroClientId: null,
           vagaroClientSecret: null,
+          vagaroMerchantId: null,
           vagaroRegion: "us",
           shopifyStoreUrl: null,
           shopifyAccessToken: null,
