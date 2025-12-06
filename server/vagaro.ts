@@ -119,6 +119,7 @@ export class VagaroClient {
         "accept": "application/json",
         "content-type": "application/json",
         "accessToken": token,
+        "businessID": this.encId,
       },
     });
 
