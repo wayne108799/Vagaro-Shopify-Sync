@@ -10,6 +10,22 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
+  // Webhook URL endpoint
+  app.get("/api/webhook-url", (_req, res) => {
+    const domain = process.env.REPLIT_DEV_DOMAIN || process.env.REPLIT_DEPLOYMENT_URL;
+    if (domain) {
+      res.json({ 
+        vagaroWebhookUrl: `https://${domain}/api/webhooks/vagaro`,
+        shopifyWebhookUrl: `https://${domain}/api/webhooks/shopify`
+      });
+    } else {
+      res.json({ 
+        vagaroWebhookUrl: `${_req.protocol}://${_req.get('host')}/api/webhooks/vagaro`,
+        shopifyWebhookUrl: `${_req.protocol}://${_req.get('host')}/api/webhooks/shopify`
+      });
+    }
+  });
+
   // Stylists endpoints
   app.get("/api/stylists", async (_req, res) => {
     try {

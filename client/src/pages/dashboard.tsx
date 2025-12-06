@@ -11,6 +11,8 @@ import {
   Wallet,
   TrendingUp,
   DollarSign,
+  Copy,
+  Link,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist } from "@/lib/api";
+import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls } from "@/lib/api";
 import { format } from "date-fns";
 
 export default function Dashboard() {
@@ -58,6 +60,17 @@ export default function Dashboard() {
     queryFn: () => getOrders({ stylistId: selectedStylistId, status: "paid" }),
     enabled: !!selectedStylistId && activeTab === "commissions",
   });
+
+  const { data: webhookUrls } = useQuery({
+    queryKey: ["webhook-urls"],
+    queryFn: getWebhookUrls,
+    enabled: activeTab === "connections",
+  });
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label} copied to clipboard`);
+  };
 
   const updateSettingsMutation = useMutation({
     mutationFn: updateSettings,
@@ -545,6 +558,64 @@ export default function Dashboard() {
                           onChange={(e) => updateSettingsMutation.mutate({ shopifyAccessToken: e.target.value })}
                           data-testid="input-shopify-token"
                         />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded bg-blue-500/10 flex items-center justify-center text-blue-500">
+                        <Link className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <CardTitle>Webhook URLs</CardTitle>
+                        <CardDescription>Configure these URLs in your Vagaro and Shopify settings</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-4">
+                      <div className="grid gap-2">
+                        <Label>Vagaro Webhook URL</Label>
+                        <div className="flex items-center gap-2">
+                          <Input 
+                            readOnly
+                            value={webhookUrls?.vagaroWebhookUrl || "Loading..."}
+                            className="font-mono text-xs bg-muted"
+                            data-testid="input-vagaro-webhook-url"
+                          />
+                          <Button 
+                            variant="outline" 
+                            size="icon"
+                            onClick={() => webhookUrls && copyToClipboard(webhookUrls.vagaroWebhookUrl, "Vagaro webhook URL")}
+                            data-testid="button-copy-vagaro-webhook"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">Use this URL in your Vagaro developer settings for appointment notifications</p>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label>Shopify Webhook URL</Label>
+                        <div className="flex items-center gap-2">
+                          <Input 
+                            readOnly
+                            value={webhookUrls?.shopifyWebhookUrl || "Loading..."}
+                            className="font-mono text-xs bg-muted"
+                            data-testid="input-shopify-webhook-url"
+                          />
+                          <Button 
+                            variant="outline" 
+                            size="icon"
+                            onClick={() => webhookUrls && copyToClipboard(webhookUrls.shopifyWebhookUrl, "Shopify webhook URL")}
+                            data-testid="button-copy-shopify-webhook"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">Use this URL in Shopify for order payment notifications</p>
                       </div>
                     </div>
                   </CardContent>

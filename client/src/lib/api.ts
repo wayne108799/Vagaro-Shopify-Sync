@@ -52,3 +52,9 @@ export async function updateSettings(data: Partial<Settings>): Promise<Settings>
   if (!res.ok) throw new Error("Failed to update settings");
   return res.json();
 }
+
+export async function getWebhookUrls(): Promise<{ vagaroWebhookUrl: string; shopifyWebhookUrl: string }> {
+  const res = await fetch("/api/webhook-url");
+  if (!res.ok) throw new Error("Failed to fetch webhook URLs");
+  return res.json();
+}
