@@ -113,18 +113,20 @@ export class VagaroClient {
     const url = `${this.baseUrl}/locations`;
     console.log(`[Vagaro] Fetching locations from: ${url} with businessID header: ${this.encId}`);
 
-    // Use GET with businessID header (correct header name per Vagaro API docs)
+    // Use POST with businessID header (correct header name per Vagaro API docs)
     const response = await fetch(url, {
-      method: "GET",
+      method: "POST",
       headers: {
         "Authorization": `Bearer ${token}`,
         "Accept": "application/json",
+        "Content-Type": "application/json",
         "businessID": this.encId,
       },
+      body: JSON.stringify({}),
     });
 
     let rawText = await response.text();
-    console.log(`[Vagaro] Locations GET response (status ${response.status}):`, rawText.substring(0, 500));
+    console.log(`[Vagaro] Locations POST response (status ${response.status}):`, rawText.substring(0, 500));
     
     if (!rawText || rawText.trim() === '') {
       throw new Error(`Vagaro API returned empty response for locations (HTTP ${response.status})`);
