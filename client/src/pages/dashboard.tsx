@@ -544,6 +544,15 @@ export default function Dashboard() {
                       </div>
                       {isConnectedVagaro && (
                         <div className="pt-2 space-y-3">
+                          <div className="p-3 bg-muted/50 rounded-lg border" data-testid="vagaro-business-id-info">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-xs text-muted-foreground">Business ID</p>
+                                <p className="font-mono text-sm font-medium" data-testid="text-vagaro-business-id">{settings.vagaroMerchantId}</p>
+                              </div>
+                              <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">Connected</Badge>
+                            </div>
+                          </div>
                           <Button 
                             onClick={() => syncStylistsMutation.mutate()}
                             disabled={syncStylistsMutation.isPending}
@@ -555,17 +564,6 @@ export default function Dashboard() {
                           <p className="text-xs text-muted-foreground">
                             Import your team members directly from your Vagaro account
                           </p>
-                          {vagaroBusinessId && (
-                            <div className="p-3 bg-muted/50 rounded-lg border" data-testid="vagaro-business-id-info">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Business ID</p>
-                                  <p className="font-mono text-sm font-medium" data-testid="text-vagaro-business-id">{vagaroBusinessId}</p>
-                                </div>
-                                <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">Verified</Badge>
-                              </div>
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
