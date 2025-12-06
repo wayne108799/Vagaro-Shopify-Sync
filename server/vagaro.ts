@@ -113,17 +113,35 @@ export class VagaroClient {
     const url = `${this.baseUrl}/locations`;
     console.log(`[Vagaro] Fetching locations from: ${url} with EncId header: ${this.encId}`);
 
-    const response = await fetch(url, {
-      method: "GET",
+    // Try POST first (some Vagaro endpoints use POST for retrieval)
+    let response = await fetch(url, {
+      method: "POST",
       headers: {
         "Authorization": `Bearer ${token}`,
         "Accept": "application/json",
+        "Content-Type": "application/json",
         "EncId": this.encId,
       },
+      body: JSON.stringify({}),
     });
 
-    const rawText = await response.text();
-    console.log(`[Vagaro] Locations response (status ${response.status}):`, rawText.substring(0, 500));
+    let rawText = await response.text();
+    console.log(`[Vagaro] Locations POST response (status ${response.status}):`, rawText.substring(0, 500));
+    
+    // If POST returns 405, try GET
+    if (response.status === 405) {
+      console.log(`[Vagaro] POST not allowed, trying GET...`);
+      response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Accept": "application/json",
+          "EncId": this.encId,
+        },
+      });
+      rawText = await response.text();
+      console.log(`[Vagaro] Locations GET response (status ${response.status}):`, rawText.substring(0, 500));
+    }
     
     if (!rawText || rawText.trim() === '') {
       throw new Error(`Vagaro API returned empty response for locations (HTTP ${response.status})`);
