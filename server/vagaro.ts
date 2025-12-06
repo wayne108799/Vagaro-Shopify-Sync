@@ -6,6 +6,7 @@ interface VagaroTokenResponse {
     access_token: string;
     expires_in: number;
   };
+  errors?: Record<string, string>;
 }
 
 interface VagaroEmployee {
@@ -23,6 +24,7 @@ interface VagaroEmployeesResponse {
   data?: {
     employees: VagaroEmployee[];
   };
+  errors?: Record<string, string>;
 }
 
 export class VagaroClient {
@@ -44,6 +46,8 @@ export class VagaroClient {
     this.baseUrl = `https://api.vagaro.com/${region}/api/v2`;
     this.clientId = settings.vagaroClientId;
     this.clientSecret = settings.vagaroClientSecret;
+    
+    console.log(`[Vagaro] Initialized client with region: ${region}, baseUrl: ${this.baseUrl}`);
   }
 
   async getAccessToken(): Promise<string> {
@@ -51,33 +55,48 @@ export class VagaroClient {
       return this.accessToken;
     }
 
-    const response = await fetch(`${this.baseUrl}/merchants/generate-access-token`, {
+    const url = `${this.baseUrl}/merchants/generate-access-token`;
+    const body = {
+      clientId: this.clientId,
+      clientSecretKey: this.clientSecret,
+      scope: "employees:read",
+    };
+    
+    console.log(`[Vagaro] Requesting access token from: ${url}`);
+
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Accept": "application/json",
       },
-      body: JSON.stringify({
-        clientId: this.clientId,
-        clientSecretKey: this.clientSecret,
-        scope: "employees:read",
-      }),
+      body: JSON.stringify(body),
     });
 
     const data = await response.json() as VagaroTokenResponse;
     
+    console.log(`[Vagaro] Token response status: ${response.status}, message: ${data.message}`);
+    if (data.errors) {
+      console.log(`[Vagaro] Token errors:`, JSON.stringify(data.errors));
+    }
+    
     if (data.status !== 200 || !data.data?.access_token) {
-      throw new Error(data.message || "Failed to get Vagaro access token");
+      const errorDetails = data.errors ? JSON.stringify(data.errors) : data.message;
+      throw new Error(`Vagaro auth failed: ${errorDetails}`);
     }
 
     this.accessToken = data.data.access_token;
+    console.log(`[Vagaro] Successfully obtained access token`);
     return this.accessToken;
   }
 
   async getEmployees(): Promise<VagaroEmployee[]> {
     const token = await this.getAccessToken();
+    
+    const url = `${this.baseUrl}/merchants/employees`;
+    console.log(`[Vagaro] Fetching employees from: ${url}`);
 
-    const response = await fetch(`${this.baseUrl}/merchants/employees`, {
+    const response = await fetch(url, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${token}`,
@@ -87,10 +106,17 @@ export class VagaroClient {
 
     const data = await response.json() as VagaroEmployeesResponse;
     
+    console.log(`[Vagaro] Employees response status: ${response.status}, message: ${data.message}`);
+    if (data.errors) {
+      console.log(`[Vagaro] Employees errors:`, JSON.stringify(data.errors));
+    }
+    
     if (data.status !== 200 || !data.data?.employees) {
-      throw new Error(data.message || "Failed to get employees from Vagaro");
+      const errorDetails = data.errors ? JSON.stringify(data.errors) : data.message;
+      throw new Error(`Failed to get employees: ${errorDetails}`);
     }
 
+    console.log(`[Vagaro] Found ${data.data.employees.length} employees`);
     return data.data.employees;
   }
 }
