@@ -158,22 +158,27 @@ export class VagaroClient {
       return this.resolvedBusinessId;
     }
 
-    const locations = await this.getLocations();
-    
-    if (locations.length === 0) {
-      throw new Error("No locations found. Please verify your Vagaro credentials.");
+    // First try to get businessId from locations endpoint
+    try {
+      const locations = await this.getLocations();
+      
+      if (locations.length > 0) {
+        const businessId = locations[0].businessId || locations[0].locationId || (locations[0] as any).id;
+        
+        if (businessId) {
+          this.resolvedBusinessId = businessId;
+          console.log(`[Vagaro] Resolved Business ID from locations: ${businessId}`);
+          return businessId;
+        }
+      }
+    } catch (error) {
+      console.log(`[Vagaro] Could not get locations, using encId as businessId:`, error);
     }
     
-    const businessId = locations[0].businessId || locations[0].locationId || (locations[0] as any).id;
-    
-    if (!businessId) {
-      console.log(`[Vagaro] Could not extract businessId from location:`, JSON.stringify(locations[0]));
-      throw new Error("Could not determine Business ID from locations response");
-    }
-    
-    this.resolvedBusinessId = businessId;
-    console.log(`[Vagaro] Resolved Business ID: ${businessId}`);
-    return businessId;
+    // Fallback: use the encId (Merchant ID) as the business ID
+    this.resolvedBusinessId = this.encId;
+    console.log(`[Vagaro] Using encId as Business ID: ${this.encId}`);
+    return this.encId;
   }
 
   async getEmployees(): Promise<VagaroEmployee[]> {
