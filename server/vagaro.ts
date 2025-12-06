@@ -103,7 +103,7 @@ export class VagaroClient {
 
     this.accessToken = token;
     console.log(`[Vagaro] Successfully obtained access token`);
-    return this.accessToken;
+    return token;
   }
 
   async getLocations(): Promise<VagaroLocation[]> {

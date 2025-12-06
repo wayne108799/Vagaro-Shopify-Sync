@@ -59,7 +59,7 @@ export async function getWebhookUrls(): Promise<{ vagaroWebhookUrl: string; shop
   return res.json();
 }
 
-export async function syncStylistsFromVagaro(): Promise<{ message: string; stylists: any[] }> {
+export async function syncStylistsFromVagaro(): Promise<{ message: string; stylists: any[]; businessId?: string }> {
   const res = await fetch("/api/vagaro/sync-stylists", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

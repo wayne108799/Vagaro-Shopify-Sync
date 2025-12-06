@@ -136,6 +136,7 @@ export async function registerRoutes(
       }
 
       const vagaroClient = new VagaroClient(settingsData);
+      const businessId = await vagaroClient.getBusinessId();
       const employees = await vagaroClient.getEmployees();
       
       const syncedStylists = [];
@@ -157,7 +158,8 @@ export async function registerRoutes(
       
       res.json({ 
         message: `Synced ${syncedStylists.length} stylists from Vagaro`,
-        stylists: syncedStylists 
+        stylists: syncedStylists,
+        businessId: businessId
       });
     } catch (error: any) {
       console.error("Vagaro sync error:", error);

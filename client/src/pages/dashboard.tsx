@@ -32,6 +32,7 @@ import { format } from "date-fns";
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedStylistId, setSelectedStylistId] = useState("");
+  const [vagaroBusinessId, setVagaroBusinessId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const { data: stylists = [] } = useQuery({
@@ -96,6 +97,9 @@ export default function Dashboard() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["stylists"] });
       toast.success(data.message);
+      if (data.businessId) {
+        setVagaroBusinessId(data.businessId);
+      }
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to sync stylists");
@@ -539,7 +543,7 @@ export default function Dashboard() {
                         </p>
                       </div>
                       {isConnectedVagaro && (
-                        <div className="pt-2">
+                        <div className="pt-2 space-y-3">
                           <Button 
                             onClick={() => syncStylistsMutation.mutate()}
                             disabled={syncStylistsMutation.isPending}
@@ -548,9 +552,20 @@ export default function Dashboard() {
                             <RefreshCw className={`w-4 h-4 mr-2 ${syncStylistsMutation.isPending ? 'animate-spin' : ''}`} />
                             {syncStylistsMutation.isPending ? "Syncing..." : "Sync Stylists from Vagaro"}
                           </Button>
-                          <p className="text-xs text-muted-foreground mt-2">
+                          <p className="text-xs text-muted-foreground">
                             Import your team members directly from your Vagaro account
                           </p>
+                          {vagaroBusinessId && (
+                            <div className="p-3 bg-muted/50 rounded-lg border" data-testid="vagaro-business-id-info">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Business ID</p>
+                                  <p className="font-mono text-sm font-medium" data-testid="text-vagaro-business-id">{vagaroBusinessId}</p>
+                                </div>
+                                <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">Verified</Badge>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
