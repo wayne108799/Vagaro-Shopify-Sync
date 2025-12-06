@@ -109,39 +109,22 @@ export class VagaroClient {
   async getLocations(): Promise<VagaroLocation[]> {
     const token = await this.getAccessToken();
     
-    // Try the locations endpoint with EncId header only (not in path)
+    // Locations endpoint with businessID header
     const url = `${this.baseUrl}/locations`;
-    console.log(`[Vagaro] Fetching locations from: ${url} with EncId header: ${this.encId}`);
+    console.log(`[Vagaro] Fetching locations from: ${url} with businessID header: ${this.encId}`);
 
-    // Try POST first (some Vagaro endpoints use POST for retrieval)
-    let response = await fetch(url, {
-      method: "POST",
+    // Use GET with businessID header (correct header name per Vagaro API docs)
+    const response = await fetch(url, {
+      method: "GET",
       headers: {
         "Authorization": `Bearer ${token}`,
         "Accept": "application/json",
-        "Content-Type": "application/json",
-        "EncId": this.encId,
+        "businessID": this.encId,
       },
-      body: JSON.stringify({}),
     });
 
     let rawText = await response.text();
-    console.log(`[Vagaro] Locations POST response (status ${response.status}):`, rawText.substring(0, 500));
-    
-    // If POST returns 405, try GET
-    if (response.status === 405) {
-      console.log(`[Vagaro] POST not allowed, trying GET...`);
-      response = await fetch(url, {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Accept": "application/json",
-          "EncId": this.encId,
-        },
-      });
-      rawText = await response.text();
-      console.log(`[Vagaro] Locations GET response (status ${response.status}):`, rawText.substring(0, 500));
-    }
+    console.log(`[Vagaro] Locations GET response (status ${response.status}):`, rawText.substring(0, 500));
     
     if (!rawText || rawText.trim() === '') {
       throw new Error(`Vagaro API returned empty response for locations (HTTP ${response.status})`);
@@ -216,7 +199,7 @@ export class VagaroClient {
       headers: {
         "Authorization": `Bearer ${token}`,
         "Accept": "application/json",
-        "EncId": this.encId,
+        "businessID": this.encId,
       },
     });
 
