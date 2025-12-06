@@ -99,42 +99,51 @@ export class VagaroClient {
   async getEmployees(): Promise<VagaroEmployee[]> {
     const token = await this.getAccessToken();
     
-    const url = `${this.baseUrl}/merchants/${this.merchantId}/employees`;
-    console.log(`[Vagaro] Fetching employees from: ${url}`);
-
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Accept": "application/json",
-      },
-    });
-
-    const rawText = await response.text();
-    console.log(`[Vagaro] Employees raw response (status ${response.status}):`, rawText.substring(0, 500));
+    const endpointsToTry = [
+      `${this.baseUrl}/businesses/${this.merchantId}/employees`,
+      `${this.baseUrl}/business/${this.merchantId}/employees`,
+      `${this.baseUrl}/merchants/${this.merchantId}/employees`,
+      `${this.baseUrl}/employees`,
+    ];
     
-    if (!rawText || rawText.trim() === '') {
-      throw new Error(`Vagaro API returned empty response (HTTP ${response.status}). This may indicate an invalid Merchant ID or API permissions issue.`);
-    }
+    for (const url of endpointsToTry) {
+      console.log(`[Vagaro] Trying employees endpoint: ${url}`);
 
-    let data: VagaroEmployeesResponse;
-    try {
-      data = JSON.parse(rawText) as VagaroEmployeesResponse;
-    } catch (e) {
-      throw new Error(`Vagaro API returned invalid JSON: ${rawText.substring(0, 200)}`);
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Accept": "application/json",
+        },
+      });
+
+      const rawText = await response.text();
+      console.log(`[Vagaro] Response from ${url} (status ${response.status}):`, rawText.substring(0, 300));
+      
+      if (response.status === 404 || !rawText || rawText.trim() === '') {
+        console.log(`[Vagaro] Endpoint ${url} returned 404 or empty, trying next...`);
+        continue;
+      }
+
+      let data: VagaroEmployeesResponse;
+      try {
+        data = JSON.parse(rawText) as VagaroEmployeesResponse;
+      } catch (e) {
+        console.log(`[Vagaro] Endpoint ${url} returned invalid JSON, trying next...`);
+        continue;
+      }
+      
+      console.log(`[Vagaro] Employees response status: ${response.status}, message: ${data.message}`);
+      if (data.errors) {
+        console.log(`[Vagaro] Employees errors:`, JSON.stringify(data.errors));
+      }
+      
+      if (data.data?.employees) {
+        console.log(`[Vagaro] Found ${data.data.employees.length} employees at ${url}`);
+        return data.data.employees;
+      }
     }
     
-    console.log(`[Vagaro] Employees response status: ${response.status}, message: ${data.message}`);
-    if (data.errors) {
-      console.log(`[Vagaro] Employees errors:`, JSON.stringify(data.errors));
-    }
-    
-    if (data.status !== 200 || !data.data?.employees) {
-      const errorDetails = data.errors ? JSON.stringify(data.errors) : data.message;
-      throw new Error(`Failed to get employees: ${errorDetails}`);
-    }
-
-    console.log(`[Vagaro] Found ${data.data.employees.length} employees`);
-    return data.data.employees;
+    throw new Error(`Could not find employees endpoint. Tried multiple URLs. Please verify your Vagaro Merchant ID and API credentials are correct.`);
   }
 }
