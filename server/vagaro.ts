@@ -109,8 +109,9 @@ export class VagaroClient {
   async getLocations(): Promise<VagaroLocation[]> {
     const token = await this.getAccessToken();
     
-    const url = `${this.baseUrl}/merchants/${this.encId}/locations`;
-    console.log(`[Vagaro] Fetching locations from: ${url}`);
+    // Try the locations endpoint with EncId header only (not in path)
+    const url = `${this.baseUrl}/locations`;
+    console.log(`[Vagaro] Fetching locations from: ${url} with EncId header: ${this.encId}`);
 
     const response = await fetch(url, {
       method: "GET",
@@ -158,27 +159,31 @@ export class VagaroClient {
       return this.resolvedBusinessId;
     }
 
-    // First try to get businessId from locations endpoint
-    try {
-      const locations = await this.getLocations();
-      
-      if (locations.length > 0) {
-        const businessId = locations[0].businessId || locations[0].locationId || (locations[0] as any).id;
-        
-        if (businessId) {
-          this.resolvedBusinessId = businessId;
-          console.log(`[Vagaro] Resolved Business ID from locations: ${businessId}`);
-          return businessId;
-        }
-      }
-    } catch (error) {
-      console.log(`[Vagaro] Could not get locations, using encId as businessId:`, error);
+    // Get businessId from locations endpoint
+    const locations = await this.getLocations();
+    
+    console.log(`[Vagaro] Locations data for businessId:`, JSON.stringify(locations).substring(0, 500));
+    
+    if (locations.length === 0) {
+      throw new Error("No locations found. Please verify your Vagaro credentials and scope.");
     }
     
-    // Fallback: use the encId (Merchant ID) as the business ID
-    this.resolvedBusinessId = this.encId;
-    console.log(`[Vagaro] Using encId as Business ID: ${this.encId}`);
-    return this.encId;
+    // Try to extract businessId from various possible field names
+    const location = locations[0];
+    const businessId = location.businessId || 
+                       location.locationId || 
+                       (location as any).business_id ||
+                       (location as any).id ||
+                       (location as any).businessID;
+    
+    if (!businessId) {
+      console.log(`[Vagaro] Full location object:`, JSON.stringify(location));
+      throw new Error("Could not extract Business ID from locations response. Check API response structure.");
+    }
+    
+    this.resolvedBusinessId = businessId;
+    console.log(`[Vagaro] Resolved Business ID: ${businessId}`);
+    return businessId;
   }
 
   async getEmployees(): Promise<VagaroEmployee[]> {
