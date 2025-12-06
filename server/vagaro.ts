@@ -65,7 +65,7 @@ export class VagaroClient {
     const body = {
       clientId: this.clientId,
       clientSecretKey: this.clientSecret,
-      scope: "employees:read locations:read",
+      scope: "locations:read employees:read",
     };
     
     console.log(`[Vagaro] Requesting access token from: ${url}`);
@@ -109,7 +109,7 @@ export class VagaroClient {
   async getLocations(): Promise<VagaroLocation[]> {
     const token = await this.getAccessToken();
     
-    const url = `${this.baseUrl}/locations`;
+    const url = `${this.baseUrl}/merchants/${this.encId}/locations`;
     console.log(`[Vagaro] Fetching locations from: ${url}`);
 
     const response = await fetch(url, {
@@ -117,7 +117,7 @@ export class VagaroClient {
       headers: {
         "Authorization": `Bearer ${token}`,
         "Accept": "application/json",
-        "encId": this.encId,
+        "EncId": this.encId,
       },
     });
 
@@ -185,72 +185,7 @@ export class VagaroClient {
     const token = await this.getAccessToken();
     const businessId = await this.getBusinessId();
     
-    // Try different endpoint structures
-    const endpoints = [
-      `${this.baseUrl}/employees`,
-      `${this.baseUrl}/businesses/${businessId}/employees`,
-      `${this.baseUrl}/merchant/employees`,
-      `${this.baseUrl}/serviceProviders`,
-    ];
-    
-    let lastError: Error | null = null;
-    
-    for (const url of endpoints) {
-      console.log(`[Vagaro] Trying employees endpoint: ${url}`);
-      
-      try {
-        const response = await fetch(url, {
-          method: "GET",
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Accept": "application/json",
-            "encId": this.encId,
-          },
-        });
-
-        const rawText = await response.text();
-        console.log(`[Vagaro] Employees response from ${url} (status ${response.status}):`, rawText.substring(0, 300));
-        
-        if (response.status === 404 || response.status === 405) {
-          continue; // Try next endpoint
-        }
-        
-        if (!rawText || rawText.trim() === '') {
-          continue; // Try next endpoint
-        }
-
-        let data: any;
-        try {
-          data = JSON.parse(rawText);
-        } catch (e) {
-          continue; // Try next endpoint
-        }
-        
-        if (data.errors) {
-          console.log(`[Vagaro] Employees errors from ${url}:`, JSON.stringify(data.errors));
-          continue; // Try next endpoint
-        }
-        
-        const employees = data.employees || data.data?.employees || data.serviceProviders || data.data;
-        
-        if (employees && Array.isArray(employees) && employees.length > 0) {
-          console.log(`[Vagaro] Found ${employees.length} employees from ${url}`);
-          return employees;
-        }
-      } catch (error) {
-        lastError = error as Error;
-        console.log(`[Vagaro] Error trying ${url}:`, error);
-      }
-    }
-    
-    throw lastError || new Error("Failed to get employees from any endpoint");
-  }
-
-  async getEmployeesOld(): Promise<VagaroEmployee[]> {
-    const token = await this.getAccessToken();
-    const businessId = await this.getBusinessId();
-    
-    const url = `${this.baseUrl}/businesses/${businessId}/employees`;
+    const url = `${this.baseUrl}/merchants/${businessId}/employees`;
     console.log(`[Vagaro] Fetching employees from: ${url}`);
 
     const response = await fetch(url, {
@@ -258,7 +193,7 @@ export class VagaroClient {
       headers: {
         "Authorization": `Bearer ${token}`,
         "Accept": "application/json",
-        "encId": this.encId,
+        "EncId": this.encId,
       },
     });
 
