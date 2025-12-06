@@ -109,20 +109,17 @@ export class VagaroClient {
   async getLocations(): Promise<VagaroLocation[]> {
     const token = await this.getAccessToken();
     
-    // Locations endpoint with businessID header
-    const url = `${this.baseUrl}/locations`;
-    console.log(`[Vagaro] Fetching locations from: ${url} with businessID header: ${this.encId}`);
+    // Locations endpoint with accessToken header (per Vagaro API docs)
+    const url = `${this.baseUrl}/locations?pageNumber=1&pageSize=25`;
+    console.log(`[Vagaro] Fetching locations from: ${url}`);
 
-    // Use POST with businessID header (correct header name per Vagaro API docs)
     const response = await fetch(url, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${token}`,
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "businessID": this.encId,
+        "accept": "application/json",
+        "content-type": "application/json",
+        "accessToken": token,
       },
-      body: JSON.stringify({}),
     });
 
     let rawText = await response.text();
@@ -199,9 +196,8 @@ export class VagaroClient {
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        "Authorization": `Bearer ${token}`,
-        "Accept": "application/json",
-        "businessID": this.encId,
+        "accept": "application/json",
+        "accessToken": token,
       },
     });
 
