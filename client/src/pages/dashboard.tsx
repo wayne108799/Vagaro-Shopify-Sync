@@ -85,7 +85,7 @@ export default function Dashboard() {
   }, [stylists, selectedStylistId]);
 
   const selectedStylist = stylists.find(s => s.id === selectedStylistId);
-  const isConnectedVagaro = !!(settings?.vagaroApiKey && settings?.vagaroBusinessId);
+  const isConnectedVagaro = !!(settings?.vagaroClientId && settings?.vagaroClientSecret);
   const isConnectedShopify = !!(settings?.shopifyStoreUrl && settings?.shopifyAccessToken);
 
   const todayOrders = orders.filter(o => {
@@ -466,23 +466,41 @@ export default function Dashboard() {
                   <CardContent className="space-y-4">
                     <div className="space-y-4">
                       <div className="grid gap-2">
-                        <Label>API Key</Label>
+                        <Label>Client ID</Label>
                         <Input 
-                          type="password" 
-                          placeholder="Enter your Vagaro API Key" 
-                          value={settings.vagaroApiKey || ""}
-                          onChange={(e) => updateSettingsMutation.mutate({ vagaroApiKey: e.target.value })}
-                          data-testid="input-vagaro-api-key"
+                          placeholder="Enter your Vagaro Client ID" 
+                          value={settings.vagaroClientId || ""}
+                          onChange={(e) => updateSettingsMutation.mutate({ vagaroClientId: e.target.value })}
+                          data-testid="input-vagaro-client-id"
                         />
                       </div>
                       <div className="grid gap-2">
-                        <Label>Business ID</Label>
+                        <Label>Client Secret</Label>
                         <Input 
-                          placeholder="Your Vagaro Business ID" 
-                          value={settings.vagaroBusinessId || ""}
-                          onChange={(e) => updateSettingsMutation.mutate({ vagaroBusinessId: e.target.value })}
-                          data-testid="input-vagaro-business-id"
+                          type="password"
+                          placeholder="Enter your Vagaro Client Secret" 
+                          value={settings.vagaroClientSecret || ""}
+                          onChange={(e) => updateSettingsMutation.mutate({ vagaroClientSecret: e.target.value })}
+                          data-testid="input-vagaro-client-secret"
                         />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label>Region</Label>
+                        <Select 
+                          value={settings.vagaroRegion || "us"}
+                          onValueChange={(value) => updateSettingsMutation.mutate({ vagaroRegion: value })}
+                        >
+                          <SelectTrigger data-testid="select-vagaro-region">
+                            <SelectValue placeholder="Select region" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="us">US (us)</SelectItem>
+                            <SelectItem value="us02">US West (us02)</SelectItem>
+                            <SelectItem value="ca">Canada (ca)</SelectItem>
+                            <SelectItem value="uk">United Kingdom (uk)</SelectItem>
+                            <SelectItem value="au">Australia (au)</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </CardContent>
