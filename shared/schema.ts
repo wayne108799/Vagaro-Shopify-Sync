@@ -53,8 +53,9 @@ export type Order = typeof orders.$inferSelect;
 
 export const settings = pgTable("settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  vagaroApiKey: text("vagaro_api_key"),
-  vagaroBusinessId: text("vagaro_business_id"),
+  vagaroClientId: text("vagaro_client_id"),
+  vagaroClientSecret: text("vagaro_client_secret"),
+  vagaroRegion: text("vagaro_region").default("us"),
   shopifyStoreUrl: text("shopify_store_url"),
   shopifyAccessToken: text("shopify_access_token"),
   defaultOrderTag: text("default_order_tag").notNull().default("vagaro-sync"),

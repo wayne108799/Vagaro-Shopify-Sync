@@ -82,8 +82,9 @@ export async function registerRoutes(
       const settingsData = await storage.getSettings();
       if (!settingsData) {
         return res.json({
-          vagaroApiKey: null,
-          vagaroBusinessId: null,
+          vagaroClientId: null,
+          vagaroClientSecret: null,
+          vagaroRegion: "us",
           shopifyStoreUrl: null,
           shopifyAccessToken: null,
           defaultOrderTag: "vagaro-sync",
