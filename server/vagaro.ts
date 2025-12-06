@@ -110,7 +110,19 @@ export class VagaroClient {
       },
     });
 
-    const data = await response.json() as VagaroEmployeesResponse;
+    const rawText = await response.text();
+    console.log(`[Vagaro] Employees raw response (status ${response.status}):`, rawText.substring(0, 500));
+    
+    if (!rawText || rawText.trim() === '') {
+      throw new Error(`Vagaro API returned empty response (HTTP ${response.status}). This may indicate an invalid Merchant ID or API permissions issue.`);
+    }
+
+    let data: VagaroEmployeesResponse;
+    try {
+      data = JSON.parse(rawText) as VagaroEmployeesResponse;
+    } catch (e) {
+      throw new Error(`Vagaro API returned invalid JSON: ${rawText.substring(0, 200)}`);
+    }
     
     console.log(`[Vagaro] Employees response status: ${response.status}, message: ${data.message}`);
     if (data.errors) {
