@@ -31,7 +31,7 @@ export class VagaroClient {
   private baseUrl: string;
   private clientId: string;
   private clientSecret: string;
-  private merchantId: string;
+  private businessId: string;
   private accessToken: string | null = null;
 
   constructor(settings: {
@@ -44,16 +44,15 @@ export class VagaroClient {
       throw new Error("Vagaro credentials not configured");
     }
     if (!settings.vagaroMerchantId) {
-      throw new Error("Vagaro Merchant ID not configured");
+      throw new Error("Vagaro Business ID not configured");
     }
     
-    const region = settings.vagaroRegion || "us";
-    this.baseUrl = `https://api.vagaro.com/${region}/api/v2`;
+    this.baseUrl = `https://api.vagaro.com/public/v2`;
     this.clientId = settings.vagaroClientId;
     this.clientSecret = settings.vagaroClientSecret;
-    this.merchantId = settings.vagaroMerchantId;
+    this.businessId = settings.vagaroMerchantId;
     
-    console.log(`[Vagaro] Initialized client with region: ${region}, merchantId: ${this.merchantId}, baseUrl: ${this.baseUrl}`);
+    console.log(`[Vagaro] Initialized client with businessId: ${this.businessId}, baseUrl: ${this.baseUrl}`);
   }
 
   async getAccessToken(): Promise<string> {
@@ -61,16 +60,15 @@ export class VagaroClient {
       return this.accessToken;
     }
 
-    const url = `${this.baseUrl}/merchants/generate-access-token`;
+    const url = `${this.baseUrl}/token`;
     const body = {
       clientId: this.clientId,
-      clientSecretKey: this.clientSecret,
-      scope: "employees:read",
-      merchantId: this.merchantId,
+      clientSecret: this.clientSecret,
+      businessId: this.businessId,
     };
     
     console.log(`[Vagaro] Requesting access token from: ${url}`);
-    console.log(`[Vagaro] Token request body:`, JSON.stringify({ ...body, clientSecretKey: "***" }));
+    console.log(`[Vagaro] Token request body:`, JSON.stringify({ ...body, clientSecret: "***" }));
 
     const response = await fetch(url, {
       method: "POST",
@@ -82,26 +80,28 @@ export class VagaroClient {
     });
 
     const rawText = await response.text();
-    console.log(`[Vagaro] Token raw response:`, rawText.substring(0, 500));
+    console.log(`[Vagaro] Token raw response (status ${response.status}):`, rawText.substring(0, 500));
     
-    let data: VagaroTokenResponse;
+    if (!rawText || rawText.trim() === '') {
+      throw new Error(`Vagaro auth failed: Empty response (HTTP ${response.status})`);
+    }
+    
+    let data: any;
     try {
-      data = JSON.parse(rawText) as VagaroTokenResponse;
+      data = JSON.parse(rawText);
     } catch (e) {
       throw new Error(`Vagaro auth failed: Invalid JSON response - ${rawText.substring(0, 200)}`);
     }
     
-    console.log(`[Vagaro] Token response status: ${response.status}, message: ${data.message}`);
-    if (data.errors) {
-      console.log(`[Vagaro] Token errors:`, JSON.stringify(data.errors));
-    }
+    console.log(`[Vagaro] Token response:`, JSON.stringify(data).substring(0, 300));
     
-    if (data.status !== 200 || !data.data?.access_token) {
-      const errorDetails = data.errors ? JSON.stringify(data.errors) : data.message;
+    const token = data.access_token || data.data?.access_token || data.token;
+    if (!token) {
+      const errorDetails = data.errors ? JSON.stringify(data.errors) : (data.message || JSON.stringify(data));
       throw new Error(`Vagaro auth failed: ${errorDetails}`);
     }
 
-    this.accessToken = data.data.access_token;
+    this.accessToken = token;
     console.log(`[Vagaro] Successfully obtained access token`);
     return this.accessToken;
   }
@@ -109,7 +109,7 @@ export class VagaroClient {
   async getEmployees(): Promise<VagaroEmployee[]> {
     const token = await this.getAccessToken();
     
-    const url = `${this.baseUrl}/employees`;
+    const url = `${this.baseUrl}/businesses/${this.businessId}/employees`;
     console.log(`[Vagaro] Fetching employees from: ${url}`);
 
     const response = await fetch(url, {
@@ -124,27 +124,30 @@ export class VagaroClient {
     console.log(`[Vagaro] Employees response (status ${response.status}):`, rawText.substring(0, 500));
     
     if (!rawText || rawText.trim() === '') {
-      throw new Error(`Vagaro API returned empty response (HTTP ${response.status}). Please verify your API credentials have permission to access employee data.`);
+      throw new Error(`Vagaro API returned empty response (HTTP ${response.status}). Please verify your Business ID and API credentials.`);
     }
 
-    let data: VagaroEmployeesResponse;
+    let data: any;
     try {
-      data = JSON.parse(rawText) as VagaroEmployeesResponse;
+      data = JSON.parse(rawText);
     } catch (e) {
       throw new Error(`Vagaro API returned invalid JSON: ${rawText.substring(0, 200)}`);
     }
     
-    console.log(`[Vagaro] Employees response - status: ${data.status}, message: ${data.message}`);
+    console.log(`[Vagaro] Employees parsed response:`, JSON.stringify(data).substring(0, 300));
+    
+    const employees = data.employees || data.data?.employees || data.serviceProviders || data.data;
+    
     if (data.errors) {
       console.log(`[Vagaro] Employees errors:`, JSON.stringify(data.errors));
       throw new Error(`Vagaro API error: ${JSON.stringify(data.errors)}`);
     }
     
-    if (!data.data?.employees) {
+    if (!employees || !Array.isArray(employees)) {
       throw new Error(`Failed to get employees: ${data.message || 'No employees data returned'}`);
     }
 
-    console.log(`[Vagaro] Found ${data.data.employees.length} employees`);
-    return data.data.employees;
+    console.log(`[Vagaro] Found ${employees.length} employees`);
+    return employees;
   }
 }
