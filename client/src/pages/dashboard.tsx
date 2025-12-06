@@ -1,37 +1,37 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
 import { 
   Activity, 
   ArrowRightLeft, 
-  CheckCircle2, 
+  Calendar,
   ChevronRight, 
   LayoutDashboard, 
   Settings, 
   Store, 
-  Users, 
-  AlertCircle,
   RefreshCw,
-  LogOut,
-  Calendar
+  Wallet,
+  TrendingUp,
+  DollarSign,
+  CreditCard,
+  User
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 // Mock Data
 const STYLISTS = [
-  { id: "s1", name: "Sarah Jenkins", role: "Senior Stylist" },
-  { id: "s2", name: "Michael Chen", role: "Colorist" },
-  { id: "s3", name: "Jessica Wu", role: "Junior Stylist" },
-  { id: "s4", name: "David Miller", role: "Barber" },
+  { id: "s1", name: "Sarah Jenkins", role: "Senior Stylist", commissionRate: 45 },
+  { id: "s2", name: "Michael Chen", role: "Colorist", commissionRate: 40 },
+  { id: "s3", name: "Jessica Wu", role: "Junior Stylist", commissionRate: 35 },
+  { id: "s4", name: "David Miller", role: "Barber", commissionRate: 40 },
 ];
 
 const RECENT_LOGS = [
@@ -41,10 +41,20 @@ const RECENT_LOGS = [
   { id: "evt_1231", time: "3 hours ago", event: "Appointment #9979", status: "success", detail: "Draft Order #D-1022 created" },
 ];
 
+const SALES_DATA = [
+  { id: "ord_1024", date: "Today, 2:30 PM", customer: "Alice M.", services: ["Haircut", "Blowout"], total: 120.00, tip: 25.00, commission: 54.00, status: "Paid" },
+  { id: "ord_1023", date: "Today, 11:15 AM", customer: "Robert K.", services: ["Men's Cut"], total: 45.00, tip: 10.00, commission: 20.25, status: "Paid" },
+  { id: "ord_1021", date: "Yesterday", customer: "Emma S.", services: ["Full Color", "Cut"], total: 280.00, tip: 50.00, commission: 126.00, status: "Paid" },
+  { id: "ord_1020", date: "Yesterday", customer: "John D.", services: ["Beard Trim"], total: 30.00, tip: 5.00, commission: 13.50, status: "Paid" },
+];
+
 export default function Dashboard() {
   const [isConnectedVagaro, setIsConnectedVagaro] = useState(false);
   const [isConnectedShopify, setIsConnectedShopify] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+  const [selectedStylistId, setSelectedStylistId] = useState("s1");
+
+  const selectedStylist = STYLISTS.find(s => s.id === selectedStylistId);
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -59,6 +69,7 @@ export default function Dashboard() {
           </div>
         </div>
         <nav className="flex-1 p-4 space-y-2">
+          <div className="text-xs font-semibold text-muted-foreground mb-2 px-4 uppercase tracking-wider">Admin</div>
           <Button 
             variant={activeTab === "overview" ? "secondary" : "ghost"} 
             className="w-full justify-start" 
@@ -87,6 +98,15 @@ export default function Dashboard() {
           >
             <Activity className="mr-2 w-4 h-4" /> Activity Logs
           </Button>
+          
+          <div className="text-xs font-semibold text-muted-foreground mt-6 mb-2 px-4 uppercase tracking-wider">Stylist Portal</div>
+          <Button 
+            variant={activeTab === "commissions" ? "secondary" : "ghost"} 
+            className="w-full justify-start" 
+            onClick={() => setActiveTab("commissions")}
+          >
+            <Wallet className="mr-2 w-4 h-4" /> My Earnings
+          </Button>
         </nav>
         <div className="p-4 border-t">
           <div className="flex items-center gap-3 px-2 py-2">
@@ -104,8 +124,20 @@ export default function Dashboard() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         <header className="h-16 border-b bg-card/50 backdrop-blur px-6 flex items-center justify-between sticky top-0 z-10">
-          <h1 className="font-semibold text-lg capitalize">{activeTab}</h1>
+          <h1 className="font-semibold text-lg capitalize">{activeTab === "commissions" ? "My Earnings" : activeTab}</h1>
           <div className="flex items-center gap-4">
+            {activeTab === "commissions" && (
+              <Select value={selectedStylistId} onValueChange={setSelectedStylistId}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select Stylist View" />
+                </SelectTrigger>
+                <SelectContent>
+                  {STYLISTS.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.name} (View As)</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-1 rounded-full">
               <div className={`w-2 h-2 rounded-full ${isConnectedVagaro && isConnectedShopify ? 'bg-green-500' : 'bg-amber-500'}`}></div>
               {isConnectedVagaro && isConnectedShopify ? 'System Operational' : 'Setup Required'}
@@ -257,18 +289,25 @@ export default function Dashboard() {
                   <CardContent>
                     <div className="space-y-4">
                       {STYLISTS.map((stylist) => (
-                        <div key={stylist.id} className="flex items-start space-x-3 space-y-0">
-                          <Checkbox id={stylist.id} defaultChecked={["s1", "s2"].includes(stylist.id)} />
-                          <div className="grid gap-1.5 leading-none">
-                            <label
-                              htmlFor={stylist.id}
-                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                            >
-                              {stylist.name}
-                            </label>
-                            <p className="text-xs text-muted-foreground">
-                              {stylist.role}
-                            </p>
+                        <div key={stylist.id} className="flex items-center justify-between space-x-3 space-y-0">
+                          <div className="flex items-start space-x-3">
+                            <Checkbox id={stylist.id} defaultChecked={["s1", "s2"].includes(stylist.id)} />
+                            <div className="grid gap-1.5 leading-none">
+                              <label
+                                htmlFor={stylist.id}
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                              >
+                                {stylist.name}
+                              </label>
+                              <p className="text-xs text-muted-foreground">
+                                {stylist.role}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">Commission:</span>
+                            <Input className="w-16 h-8" defaultValue={stylist.commissionRate} type="number" />
+                            <span className="text-xs text-muted-foreground">%</span>
                           </div>
                         </div>
                       ))}
@@ -462,6 +501,134 @@ export default function Dashboard() {
                   </div>
                 </CardContent>
               </Card>
+            )}
+
+            {/* COMMISSIONS TAB (New) */}
+            {activeTab === "commissions" && (
+              <div className="space-y-6">
+                {/* Stylist Header */}
+                <div className="flex flex-col md:flex-row gap-6 justify-between md:items-center bg-primary/5 p-6 rounded-xl border border-primary/10">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xl font-bold border-2 border-background shadow-sm">
+                      {selectedStylist?.name.split(' ').map(n => n[0]).join('')}
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold">{selectedStylist?.name}</h2>
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Badge variant="secondary" className="font-normal">{selectedStylist?.role}</Badge>
+                        <span>•</span>
+                        <span className="text-sm">Commission Rate: <span className="font-semibold text-foreground">{selectedStylist?.commissionRate}%</span></span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <div className="text-right px-4 py-2 bg-background rounded-lg border shadow-sm">
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Today's Tips</div>
+                      <div className="text-xl font-bold text-green-600">$35.00</div>
+                    </div>
+                    <div className="text-right px-4 py-2 bg-primary text-primary-foreground rounded-lg shadow-sm">
+                      <div className="text-xs opacity-80 uppercase tracking-wider font-semibold">Est. Payout</div>
+                      <div className="text-xl font-bold">$109.25</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Summary Cards */}
+                <div className="grid md:grid-cols-3 gap-6">
+                  <Card>
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">Total Service Sales</CardTitle>
+                      <DollarSign className="w-4 h-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">$475.00</div>
+                      <p className="text-xs text-muted-foreground mt-1">Last 24 hours</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">Commission Earned</CardTitle>
+                      <TrendingUp className="w-4 h-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-primary">$213.75</div>
+                      <p className="text-xs text-muted-foreground mt-1">Based on {selectedStylist?.commissionRate}% rate</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">Tips Collected</CardTitle>
+                      <Wallet className="w-4 h-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-green-600">$90.00</div>
+                      <p className="text-xs text-muted-foreground mt-1">100% passthrough</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Sales Table */}
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>Recent Paid Orders</CardTitle>
+                        <CardDescription>Sales processed through Shopify</CardDescription>
+                      </div>
+                      <div className="flex gap-2">
+                        <Select defaultValue="today">
+                          <SelectTrigger className="w-[130px] h-8">
+                            <SelectValue placeholder="Filter" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="today">Today</SelectItem>
+                            <SelectItem value="yesterday">Yesterday</SelectItem>
+                            <SelectItem value="week">This Week</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Order</TableHead>
+                          <TableHead>Time</TableHead>
+                          <TableHead>Customer</TableHead>
+                          <TableHead>Services</TableHead>
+                          <TableHead className="text-right">Total</TableHead>
+                          <TableHead className="text-right text-green-600">Tip</TableHead>
+                          <TableHead className="text-right font-bold text-primary">Your Cut</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {SALES_DATA.map((sale) => (
+                          <TableRow key={sale.id}>
+                            <TableCell className="font-mono text-xs font-medium">{sale.id}</TableCell>
+                            <TableCell className="text-muted-foreground text-xs">{sale.date}</TableCell>
+                            <TableCell>{sale.customer}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {sale.services.map((s, i) => (
+                                  <Badge key={i} variant="secondary" className="font-normal text-xs">{s}</Badge>
+                                ))}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">${sale.total.toFixed(2)}</TableCell>
+                            <TableCell className="text-right text-green-600 font-medium">
+                              {sale.tip > 0 ? `+$${sale.tip.toFixed(2)}` : '-'}
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-primary">
+                              ${(sale.commission + sale.tip).toFixed(2)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
             )}
 
           </main>
