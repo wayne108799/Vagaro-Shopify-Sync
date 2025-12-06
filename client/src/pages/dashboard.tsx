@@ -26,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls } from "@/lib/api";
+import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls, syncStylistsFromVagaro } from "@/lib/api";
 import { format } from "date-fns";
 
 export default function Dashboard() {
@@ -88,6 +88,17 @@ export default function Dashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stylists"] });
       toast.success("Stylist updated");
+    },
+  });
+
+  const syncStylistsMutation = useMutation({
+    mutationFn: syncStylistsFromVagaro,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["stylists"] });
+      toast.success(data.message);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to sync stylists");
     },
   });
 
@@ -515,6 +526,21 @@ export default function Dashboard() {
                           </SelectContent>
                         </Select>
                       </div>
+                      {isConnectedVagaro && (
+                        <div className="pt-2">
+                          <Button 
+                            onClick={() => syncStylistsMutation.mutate()}
+                            disabled={syncStylistsMutation.isPending}
+                            data-testid="button-sync-stylists"
+                          >
+                            <RefreshCw className={`w-4 h-4 mr-2 ${syncStylistsMutation.isPending ? 'animate-spin' : ''}`} />
+                            {syncStylistsMutation.isPending ? "Syncing..." : "Sync Stylists from Vagaro"}
+                          </Button>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Import your team members directly from your Vagaro account
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

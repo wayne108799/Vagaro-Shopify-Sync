@@ -58,3 +58,15 @@ export async function getWebhookUrls(): Promise<{ vagaroWebhookUrl: string; shop
   if (!res.ok) throw new Error("Failed to fetch webhook URLs");
   return res.json();
 }
+
+export async function syncStylistsFromVagaro(): Promise<{ message: string; stylists: any[] }> {
+  const res = await fetch("/api/vagaro/sync-stylists", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to sync stylists from Vagaro");
+  }
+  return res.json();
+}

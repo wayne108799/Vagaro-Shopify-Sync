@@ -24,6 +24,8 @@ export interface IStorage {
   getStylist(id: string): Promise<Stylist | undefined>;
   createStylist(stylist: InsertStylist): Promise<Stylist>;
   updateStylist(id: string, data: Partial<InsertStylist>): Promise<Stylist | undefined>;
+  upsertStylistByVagaroId(vagaroId: string, data: InsertStylist): Promise<Stylist>;
+  deleteStylistsNotInList(vagaroIds: string[]): Promise<void>;
   
   getOrders(filters?: { stylistId?: string; status?: string; fromDate?: Date }): Promise<Order[]>;
   getOrder(id: string): Promise<Order | undefined>;
@@ -70,6 +72,28 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  async upsertStylistByVagaroId(vagaroId: string, data: InsertStylist): Promise<Stylist> {
+    const existing = await db.select().from(stylists).where(eq(stylists.vagaroId, vagaroId)).limit(1);
+    
+    if (existing[0]) {
+      const result = await db.update(stylists).set(data).where(eq(stylists.id, existing[0].id)).returning();
+      return result[0];
+    } else {
+      const result = await db.insert(stylists).values(data).returning();
+      return result[0];
+    }
+  }
+
+  async deleteStylistsNotInList(vagaroIds: string[]): Promise<void> {
+    if (vagaroIds.length === 0) return;
+    const allStylists = await this.getStylists();
+    for (const stylist of allStylists) {
+      if (stylist.vagaroId && !vagaroIds.includes(stylist.vagaroId)) {
+        await db.delete(stylists).where(eq(stylists.id, stylist.id));
+      }
+    }
+  }
+
   async getOrders(filters?: { stylistId?: string; status?: string; fromDate?: Date }): Promise<Order[]> {
     let query = db.select().from(orders);
     
@@ -111,7 +135,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateOrder(id: string, data: Partial<InsertOrder>): Promise<Order | undefined> {
-    const updateData = data.services ? { ...data, services: data.services as any } : data;
+    const updateData: any = { ...data };
+    if (data.services) {
+      updateData.services = data.services;
+    }
     const result = await db.update(orders).set(updateData).where(eq(orders.id, id)).returning();
     return result[0];
   }

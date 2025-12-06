@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { ShopifyClient } from "./shopify";
+import { VagaroClient } from "./vagaro";
 import { insertStylistSchema, insertOrderSchema, insertSettingsSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -122,6 +123,44 @@ export async function registerRoutes(
       res.json(settingsData);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Sync stylists from Vagaro
+  app.post("/api/vagaro/sync-stylists", async (_req, res) => {
+    try {
+      const settingsData = await storage.getSettings();
+      if (!settingsData?.vagaroClientId || !settingsData?.vagaroClientSecret) {
+        return res.status(400).json({ error: "Vagaro credentials not configured" });
+      }
+
+      const vagaroClient = new VagaroClient(settingsData);
+      const employees = await vagaroClient.getEmployees();
+      
+      const syncedStylists = [];
+      const vagaroIds: string[] = [];
+      
+      for (const emp of employees) {
+        const vagaroId = emp.employeeId.toString();
+        vagaroIds.push(vagaroId);
+        
+        const stylist = await storage.upsertStylistByVagaroId(vagaroId, {
+          name: `${emp.firstName} ${emp.lastName}`.trim(),
+          role: emp.jobTitle || "Stylist",
+          commissionRate: 40,
+          vagaroId: vagaroId,
+          enabled: true,
+        });
+        syncedStylists.push(stylist);
+      }
+      
+      res.json({ 
+        message: `Synced ${syncedStylists.length} stylists from Vagaro`,
+        stylists: syncedStylists 
+      });
+    } catch (error: any) {
+      console.error("Vagaro sync error:", error);
+      res.status(500).json({ error: error.message });
     }
   });
 
