@@ -243,3 +243,150 @@ export async function getTimeclockReport(
   if (!res.ok) throw new Error("Failed to fetch timeclock report");
   return res.json();
 }
+
+export interface CommissionReportEntry {
+  stylistId: string;
+  stylistName: string;
+  totalSales: number;
+  voidedSales: number;
+  netSales: number;
+  commissionRate: number;
+  baseCommission: number;
+  adjustments: number;
+  totalCommission: number;
+  totalTips: number;
+  orderCount: number;
+}
+
+export async function getCommissionReport(
+  startDate: string,
+  endDate: string,
+  stylistId?: string
+): Promise<CommissionReportEntry[]> {
+  const params = new URLSearchParams();
+  params.set("startDate", startDate);
+  params.set("endDate", endDate);
+  if (stylistId) params.set("stylistId", stylistId);
+  
+  const res = await fetch(`/api/admin/commission-report?${params}`);
+  if (!res.ok) throw new Error("Failed to fetch commission report");
+  return res.json();
+}
+
+export async function getAdminOrders(filters: {
+  startDate: string;
+  endDate: string;
+  stylistId?: string;
+  includeVoided?: boolean;
+}): Promise<Order[]> {
+  const params = new URLSearchParams();
+  params.set("startDate", filters.startDate);
+  params.set("endDate", filters.endDate);
+  if (filters.stylistId) params.set("stylistId", filters.stylistId);
+  if (filters.includeVoided) params.set("includeVoided", "true");
+  
+  const res = await fetch(`/api/admin/orders?${params}`);
+  if (!res.ok) throw new Error("Failed to fetch orders");
+  return res.json();
+}
+
+export async function createManualOrder(data: {
+  stylistId: string;
+  customerName: string;
+  services?: string[];
+  totalAmount: string;
+  tipAmount?: string;
+  notes?: string;
+}): Promise<Order> {
+  const res = await fetch("/api/admin/orders", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to create order");
+  }
+  return res.json();
+}
+
+export async function voidOrder(id: string, reason: string): Promise<Order> {
+  const res = await fetch(`/api/admin/orders/${id}/void`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason }),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to void order");
+  }
+  return res.json();
+}
+
+export async function restoreOrder(id: string): Promise<Order> {
+  const res = await fetch(`/api/admin/orders/${id}/restore`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to restore order");
+  }
+  return res.json();
+}
+
+export interface CommissionAdjustment {
+  id: string;
+  stylistId: string;
+  periodStart: string;
+  periodEnd: string;
+  amount: string;
+  reason: string;
+  orderId: string | null;
+  createdAt: string;
+}
+
+export async function getCommissionAdjustments(filters?: {
+  stylistId?: string;
+  periodStart?: string;
+  periodEnd?: string;
+}): Promise<CommissionAdjustment[]> {
+  const params = new URLSearchParams();
+  if (filters?.stylistId) params.set("stylistId", filters.stylistId);
+  if (filters?.periodStart) params.set("periodStart", filters.periodStart);
+  if (filters?.periodEnd) params.set("periodEnd", filters.periodEnd);
+  
+  const res = await fetch(`/api/admin/commission-adjustments?${params}`);
+  if (!res.ok) throw new Error("Failed to fetch adjustments");
+  return res.json();
+}
+
+export async function createCommissionAdjustment(data: {
+  stylistId: string;
+  periodStart: string;
+  periodEnd: string;
+  amount: string;
+  reason: string;
+  orderId?: string;
+}): Promise<CommissionAdjustment> {
+  const res = await fetch("/api/admin/commission-adjustments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to create adjustment");
+  }
+  return res.json();
+}
+
+export async function deleteCommissionAdjustment(id: string): Promise<{ message: string }> {
+  const res = await fetch(`/api/admin/commission-adjustments/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to delete adjustment");
+  }
+  return res.json();
+}
