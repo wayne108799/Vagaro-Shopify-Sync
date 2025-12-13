@@ -48,6 +48,10 @@ export const orders = pgTable("orders", {
   status: text("status").notNull().default("draft"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   paidAt: timestamp("paid_at"),
+  isManual: boolean("is_manual").notNull().default(false),
+  voidedAt: timestamp("voided_at"),
+  voidReason: text("void_reason"),
+  notes: text("notes"),
 });
 
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true });
@@ -98,3 +102,18 @@ export const timeEntries = pgTable("time_entries", {
 export const insertTimeEntrySchema = createInsertSchema(timeEntries).omit({ id: true });
 export type InsertTimeEntry = z.infer<typeof insertTimeEntrySchema>;
 export type TimeEntry = typeof timeEntries.$inferSelect;
+
+export const commissionAdjustments = pgTable("commission_adjustments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  stylistId: varchar("stylist_id").notNull().references(() => stylists.id, { onDelete: "cascade" }),
+  periodStart: text("period_start").notNull(),
+  periodEnd: text("period_end").notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  reason: text("reason").notNull(),
+  orderId: varchar("order_id").references(() => orders.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertCommissionAdjustmentSchema = createInsertSchema(commissionAdjustments).omit({ id: true, createdAt: true });
+export type InsertCommissionAdjustment = z.infer<typeof insertCommissionAdjustmentSchema>;
+export type CommissionAdjustment = typeof commissionAdjustments.$inferSelect;
