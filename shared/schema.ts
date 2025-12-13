@@ -21,7 +21,7 @@ export const stylists = pgTable("stylists", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   role: text("role").notNull(),
-  commissionRate: integer("commission_rate").notNull(),
+  commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).notNull(),
   hourlyRate: decimal("hourly_rate", { precision: 10, scale: 2 }).default("0"),
   vagaroId: text("vagaro_id"),
   shopifyStaffId: text("shopify_staff_id"),
@@ -83,7 +83,7 @@ export const commissionTiers = pgTable("commission_tiers", {
   stylistId: varchar("stylist_id").notNull().references(() => stylists.id, { onDelete: "cascade" }),
   tierLevel: integer("tier_level").notNull(),
   salesThreshold: decimal("sales_threshold", { precision: 10, scale: 2 }).notNull(),
-  commissionRate: integer("commission_rate").notNull(),
+  commissionRate: decimal("commission_rate", { precision: 5, scale: 2 }).notNull(),
 });
 
 export const insertCommissionTierSchema = createInsertSchema(commissionTiers).omit({ id: true });

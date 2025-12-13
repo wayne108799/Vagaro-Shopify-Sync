@@ -273,13 +273,13 @@ export class DatabaseStorage implements IStorage {
     
     if (tiers.length === 0) {
       const stylist = await this.getStylist(stylistId);
-      return stylist?.commissionRate ?? 40;
+      return parseFloat(stylist?.commissionRate ?? "40");
     }
     
-    let applicableRate = tiers[0]?.commissionRate ?? 40;
+    let applicableRate = parseFloat(tiers[0]?.commissionRate ?? "40");
     for (const tier of tiers) {
       if (totalSales >= parseFloat(tier.salesThreshold)) {
-        applicableRate = tier.commissionRate;
+        applicableRate = parseFloat(tier.commissionRate);
       }
     }
     

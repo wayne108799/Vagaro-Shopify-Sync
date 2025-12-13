@@ -191,7 +191,7 @@ export async function registerRoutes(
         const stylist = await storage.upsertStylistByVagaroId(vagaroId, {
           name: `${firstName} ${lastName}`.trim() || 'Unknown',
           role: emp.jobTitle || "Stylist",
-          commissionRate: 40,
+          commissionRate: "40",
           vagaroId: vagaroId,
           enabled: true,
         });
@@ -301,7 +301,7 @@ export async function registerRoutes(
         stylist = await storage.upsertStylistByVagaroId(serviceProviderId, {
           name: employeeName,
           role: employeeRole,
-          commissionRate: 40,
+          commissionRate: "40",
           vagaroId: serviceProviderId,
           enabled: true,
         });
