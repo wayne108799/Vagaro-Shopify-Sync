@@ -90,6 +90,7 @@ export default function Dashboard() {
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
   const [adjustmentForm, setAdjustmentForm] = useState({ stylistId: "", amount: "", reason: "" });
   const [showVoidedOrders, setShowVoidedOrders] = useState(false);
+  const [hideDisabledStylists, setHideDisabledStylists] = useState(true);
   const queryClient = useQueryClient();
 
   const { data: stylists = [] } = useQuery({
@@ -701,12 +702,25 @@ export default function Dashboard() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>Stylist Management</CardTitle>
-                    <CardDescription>Manage staff members, PINs, and commission rates</CardDescription>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>Stylist Management</CardTitle>
+                        <CardDescription>Manage staff members, PINs, and commission rates</CardDescription>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="hide-disabled" className="text-sm text-muted-foreground">Hide disabled</Label>
+                        <Switch
+                          id="hide-disabled"
+                          checked={hideDisabledStylists}
+                          onCheckedChange={setHideDisabledStylists}
+                          data-testid="switch-hide-disabled"
+                        />
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {stylists.map((stylist) => (
+                      {stylists.filter(s => !hideDisabledStylists || s.enabled).map((stylist) => (
                         <div key={stylist.id} className="flex flex-col gap-3 p-4 border rounded-lg" data-testid={`stylist-row-${stylist.id}`}>
                           <div className="flex items-center justify-between">
                             <div className="flex items-start space-x-3">
