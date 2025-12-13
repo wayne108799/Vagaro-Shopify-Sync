@@ -274,20 +274,20 @@ export default function Dashboard() {
         })));
       } else {
         setEditingTiers([
-          { tierLevel: 1, salesThreshold: "0", commissionRate: 35 },
-          { tierLevel: 2, salesThreshold: "5000", commissionRate: 40 },
-          { tierLevel: 3, salesThreshold: "10000", commissionRate: 45 },
-          { tierLevel: 4, salesThreshold: "20000", commissionRate: 50 },
-          { tierLevel: 5, salesThreshold: "30000", commissionRate: 55 },
+          { tierLevel: 1, salesThreshold: "0", commissionRate: "35" },
+          { tierLevel: 2, salesThreshold: "5000", commissionRate: "40" },
+          { tierLevel: 3, salesThreshold: "10000", commissionRate: "45" },
+          { tierLevel: 4, salesThreshold: "20000", commissionRate: "50" },
+          { tierLevel: 5, salesThreshold: "30000", commissionRate: "55" },
         ]);
       }
     } catch {
       setEditingTiers([
-        { tierLevel: 1, salesThreshold: "0", commissionRate: 35 },
-        { tierLevel: 2, salesThreshold: "5000", commissionRate: 40 },
-        { tierLevel: 3, salesThreshold: "10000", commissionRate: 45 },
-        { tierLevel: 4, salesThreshold: "20000", commissionRate: 50 },
-        { tierLevel: 5, salesThreshold: "30000", commissionRate: 55 },
+        { tierLevel: 1, salesThreshold: "0", commissionRate: "35" },
+        { tierLevel: 2, salesThreshold: "5000", commissionRate: "40" },
+        { tierLevel: 3, salesThreshold: "10000", commissionRate: "45" },
+        { tierLevel: 4, salesThreshold: "20000", commissionRate: "50" },
+        { tierLevel: 5, salesThreshold: "30000", commissionRate: "55" },
       ]);
     }
     setTiersDialogOpen(true);
@@ -295,7 +295,7 @@ export default function Dashboard() {
 
   const updateTier = (index: number, field: "salesThreshold" | "commissionRate", value: string) => {
     setEditingTiers(prev => prev.map((tier, i) => 
-      i === index ? { ...tier, [field]: field === "commissionRate" ? parseInt(value) || 0 : value } : tier
+      i === index ? { ...tier, [field]: value } : tier
     ));
   };
 
@@ -777,13 +777,14 @@ export default function Dashboard() {
                           <div className="flex items-center gap-2 ml-7">
                             <span className="text-xs text-muted-foreground">Base Commission:</span>
                             <Input 
-                              className="w-16 h-8" 
+                              className="w-20 h-8" 
                               value={stylist.commissionRate} 
                               type="number"
+                              step="0.01"
                               onChange={(e) => 
                                 updateStylistMutation.mutate({ 
                                   id: stylist.id, 
-                                  data: { commissionRate: parseInt(e.target.value) } 
+                                  data: { commissionRate: e.target.value } 
                                 })
                               }
                               data-testid={`input-commission-${stylist.id}`}
@@ -1765,6 +1766,7 @@ export default function Dashboard() {
                       <div className="flex items-center gap-2">
                         <Input
                           type="number"
+                          step="0.01"
                           value={tier.commissionRate}
                           onChange={(e) => updateTier(index, "commissionRate", e.target.value)}
                           placeholder="40"

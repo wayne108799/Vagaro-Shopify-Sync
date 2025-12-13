@@ -100,7 +100,7 @@ export interface CommissionTier {
   stylistId?: string;
   tierLevel: number;
   salesThreshold: string;
-  commissionRate: number;
+  commissionRate: string;
 }
 
 export async function getCommissionTiers(stylistId: string): Promise<CommissionTier[]> {
