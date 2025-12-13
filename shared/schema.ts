@@ -84,3 +84,16 @@ export const commissionTiers = pgTable("commission_tiers", {
 export const insertCommissionTierSchema = createInsertSchema(commissionTiers).omit({ id: true });
 export type InsertCommissionTier = z.infer<typeof insertCommissionTierSchema>;
 export type CommissionTier = typeof commissionTiers.$inferSelect;
+
+export const timeEntries = pgTable("time_entries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  stylistId: varchar("stylist_id").notNull().references(() => stylists.id, { onDelete: "cascade" }),
+  clockIn: timestamp("clock_in").notNull().defaultNow(),
+  clockOut: timestamp("clock_out"),
+  payPeriodStart: text("pay_period_start").notNull(),
+  payPeriodEnd: text("pay_period_end").notNull(),
+});
+
+export const insertTimeEntrySchema = createInsertSchema(timeEntries).omit({ id: true });
+export type InsertTimeEntry = z.infer<typeof insertTimeEntrySchema>;
+export type TimeEntry = typeof timeEntries.$inferSelect;
