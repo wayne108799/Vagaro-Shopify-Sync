@@ -12,12 +12,15 @@ import {
   type InsertCommissionTier,
   type TimeEntry,
   type InsertTimeEntry,
+  type CommissionAdjustment,
+  type InsertCommissionAdjustment,
   users,
   stylists,
   orders,
   settings,
   commissionTiers,
-  timeEntries
+  timeEntries,
+  commissionAdjustments
 } from "@shared/schema";
 import { eq, desc, and, gte, lte, asc, isNull } from "drizzle-orm";
 
@@ -80,6 +83,29 @@ export interface IStorage {
   updateTimeEntry(id: string, data: Partial<InsertTimeEntry>): Promise<TimeEntry | undefined>;
   deleteTimeEntry(id: string): Promise<boolean>;
   getTimeclockReport(startDate: string, endDate: string, stylistId?: string): Promise<{ stylistId: string; stylistName: string; totalHours: number; hourlyRate: string; totalEarnings: number }[]>;
+  
+  voidOrder(id: string, reason: string): Promise<Order | undefined>;
+  restoreOrder(id: string): Promise<Order | undefined>;
+  getOrdersForPeriod(startDate: string, endDate: string, stylistId?: string, includeVoided?: boolean): Promise<Order[]>;
+  
+  getCommissionAdjustments(filters?: { stylistId?: string; periodStart?: string; periodEnd?: string }): Promise<CommissionAdjustment[]>;
+  createCommissionAdjustment(data: InsertCommissionAdjustment): Promise<CommissionAdjustment>;
+  updateCommissionAdjustment(id: string, data: Partial<InsertCommissionAdjustment>): Promise<CommissionAdjustment | undefined>;
+  deleteCommissionAdjustment(id: string): Promise<boolean>;
+  
+  getCommissionReport(startDate: string, endDate: string, stylistId?: string): Promise<{
+    stylistId: string;
+    stylistName: string;
+    totalSales: number;
+    voidedSales: number;
+    netSales: number;
+    commissionRate: number;
+    baseCommission: number;
+    adjustments: number;
+    totalCommission: number;
+    totalTips: number;
+    orderCount: number;
+  }[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -379,6 +405,133 @@ export class DatabaseStorage implements IStorage {
         totalHours: hours,
         hourlyRate,
         totalEarnings: Math.round(totalEarnings * 100) / 100,
+      });
+    }
+    
+    return results;
+  }
+
+  async voidOrder(id: string, reason: string): Promise<Order | undefined> {
+    const result = await db.update(orders)
+      .set({ voidedAt: new Date(), voidReason: reason })
+      .where(eq(orders.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async restoreOrder(id: string): Promise<Order | undefined> {
+    const result = await db.update(orders)
+      .set({ voidedAt: null, voidReason: null })
+      .where(eq(orders.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async getOrdersForPeriod(startDate: string, endDate: string, stylistId?: string, includeVoided: boolean = false): Promise<Order[]> {
+    const conditions = [
+      gte(orders.createdAt, new Date(startDate + "T00:00:00")),
+      lte(orders.createdAt, new Date(endDate + "T23:59:59.999")),
+    ];
+    
+    if (stylistId) {
+      conditions.push(eq(orders.stylistId, stylistId));
+    }
+    
+    if (!includeVoided) {
+      conditions.push(isNull(orders.voidedAt));
+    }
+    
+    return await db.select().from(orders)
+      .where(and(...conditions))
+      .orderBy(desc(orders.createdAt));
+  }
+
+  async getCommissionAdjustments(filters?: { stylistId?: string; periodStart?: string; periodEnd?: string }): Promise<CommissionAdjustment[]> {
+    const conditions = [];
+    
+    if (filters?.stylistId) {
+      conditions.push(eq(commissionAdjustments.stylistId, filters.stylistId));
+    }
+    if (filters?.periodStart) {
+      conditions.push(eq(commissionAdjustments.periodStart, filters.periodStart));
+    }
+    if (filters?.periodEnd) {
+      conditions.push(eq(commissionAdjustments.periodEnd, filters.periodEnd));
+    }
+    
+    let query = db.select().from(commissionAdjustments);
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    return await query.orderBy(desc(commissionAdjustments.createdAt));
+  }
+
+  async createCommissionAdjustment(data: InsertCommissionAdjustment): Promise<CommissionAdjustment> {
+    const result = await db.insert(commissionAdjustments).values(data).returning();
+    return result[0];
+  }
+
+  async updateCommissionAdjustment(id: string, data: Partial<InsertCommissionAdjustment>): Promise<CommissionAdjustment | undefined> {
+    const result = await db.update(commissionAdjustments).set(data).where(eq(commissionAdjustments.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteCommissionAdjustment(id: string): Promise<boolean> {
+    const result = await db.delete(commissionAdjustments).where(eq(commissionAdjustments.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getCommissionReport(startDate: string, endDate: string, stylistId?: string): Promise<{
+    stylistId: string;
+    stylistName: string;
+    totalSales: number;
+    voidedSales: number;
+    netSales: number;
+    commissionRate: number;
+    baseCommission: number;
+    adjustments: number;
+    totalCommission: number;
+    totalTips: number;
+    orderCount: number;
+  }[]> {
+    const allStylists = await this.getStylists();
+    const filteredStylists = stylistId ? allStylists.filter(s => s.id === stylistId) : allStylists;
+    
+    const results = [];
+    
+    for (const stylist of filteredStylists) {
+      const periodOrders = await this.getOrdersForPeriod(startDate, endDate, stylist.id, true);
+      const adjustmentsList = await this.getCommissionAdjustments({ 
+        stylistId: stylist.id, 
+        periodStart: startDate, 
+        periodEnd: endDate 
+      });
+      
+      const activeOrders = periodOrders.filter(o => !o.voidedAt);
+      const voidedOrders = periodOrders.filter(o => o.voidedAt);
+      
+      const totalSales = periodOrders.reduce((sum, o) => sum + parseFloat(o.totalAmount), 0);
+      const voidedSales = voidedOrders.reduce((sum, o) => sum + parseFloat(o.totalAmount), 0);
+      const netSales = activeOrders.reduce((sum, o) => sum + parseFloat(o.totalAmount), 0);
+      const totalTips = activeOrders.reduce((sum, o) => sum + parseFloat(o.tipAmount), 0);
+      
+      const commissionRate = await this.getApplicableCommissionRate(stylist.id, netSales);
+      const baseCommission = activeOrders.reduce((sum, o) => sum + parseFloat(o.commissionAmount), 0);
+      const adjustmentsTotal = adjustmentsList.reduce((sum, a) => sum + parseFloat(a.amount), 0);
+      
+      results.push({
+        stylistId: stylist.id,
+        stylistName: stylist.name,
+        totalSales: Math.round(totalSales * 100) / 100,
+        voidedSales: Math.round(voidedSales * 100) / 100,
+        netSales: Math.round(netSales * 100) / 100,
+        commissionRate,
+        baseCommission: Math.round(baseCommission * 100) / 100,
+        adjustments: Math.round(adjustmentsTotal * 100) / 100,
+        totalCommission: Math.round((baseCommission + adjustmentsTotal) * 100) / 100,
+        totalTips: Math.round(totalTips * 100) / 100,
+        orderCount: activeOrders.length,
       });
     }
     
