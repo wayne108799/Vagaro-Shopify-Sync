@@ -143,11 +143,13 @@ export async function registerRoutes(
       const vagaroIds: string[] = [];
       
       for (const emp of employees) {
-        const vagaroId = emp.employeeId.toString();
+        const vagaroId = (emp.employeeId || emp.serviceProviderId || '').toString();
         vagaroIds.push(vagaroId);
         
+        const firstName = emp.employeeFirstName || emp.firstName || '';
+        const lastName = emp.employeeLastName || emp.lastName || '';
         const stylist = await storage.upsertStylistByVagaroId(vagaroId, {
-          name: `${emp.firstName} ${emp.lastName}`.trim(),
+          name: `${firstName} ${lastName}`.trim() || 'Unknown',
           role: emp.jobTitle || "Stylist",
           commissionRate: 40,
           vagaroId: vagaroId,
@@ -216,7 +218,9 @@ export async function registerRoutes(
             console.log(`[Vagaro Webhook] Fetching employee details for ${serviceProviderId}`);
             const employee = await vagaroClient.getEmployeeById(serviceProviderId);
             if (employee) {
-              employeeName = `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || employeeName;
+              const firstName = employee.employeeFirstName || employee.firstName || '';
+              const lastName = employee.employeeLastName || employee.lastName || '';
+              employeeName = `${firstName} ${lastName}`.trim() || employeeName;
               employeeRole = employee.jobTitle || employeeRole;
               console.log(`[Vagaro Webhook] Found employee: ${employeeName}`);
             }
@@ -227,7 +231,9 @@ export async function registerRoutes(
             console.log(`[Vagaro Webhook] Fetching customer details for ${customerId}`);
             const customer = await vagaroClient.getCustomerById(customerId);
             if (customer) {
-              customerName = `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || customerName;
+              const firstName = customer.customerFirstName || customer.firstName || '';
+              const lastName = customer.customerLastName || customer.lastName || '';
+              customerName = `${firstName} ${lastName}`.trim() || customerName;
               customerEmail = customer.email;
               console.log(`[Vagaro Webhook] Found customer: ${customerName}, email: ${customerEmail}`);
             }

@@ -10,21 +10,27 @@ interface VagaroTokenResponse {
 }
 
 interface VagaroEmployee {
-  employeeId: string;
+  employeeId?: string;
   serviceProviderId?: string;
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
+  employeeFirstName?: string;
+  employeeLastName?: string;
   jobTitle?: string;
   email?: string;
   phoneNumber?: string;
+  phone?: string;
 }
 
 interface VagaroCustomer {
   customerId: string;
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
+  customerFirstName?: string;
+  customerLastName?: string;
   email?: string;
   phoneNumber?: string;
+  mobilePhone?: string;
 }
 
 interface VagaroLocation {
