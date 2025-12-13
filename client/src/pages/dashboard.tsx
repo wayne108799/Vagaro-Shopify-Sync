@@ -71,7 +71,7 @@ export default function Dashboard() {
       return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${lastDay}`;
     }
   });
-  const [timeclockStylistFilter, setTimeclockStylistFilter] = useState("");
+  const [timeclockStylistFilter, setTimeclockStylistFilter] = useState("all");
   const [entryDialogOpen, setEntryDialogOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [entryForm, setEntryForm] = useState({ stylistId: "", clockIn: "", clockOut: "" });
@@ -117,14 +117,14 @@ export default function Dashboard() {
     queryFn: () => getAdminTimeEntries({ 
       startDate: timeclockStartDate, 
       endDate: timeclockEndDate,
-      stylistId: timeclockStylistFilter || undefined 
+      stylistId: timeclockStylistFilter === "all" ? undefined : timeclockStylistFilter 
     }),
     enabled: activeTab === "timeclock",
   });
 
   const { data: timeclockReport = [] } = useQuery({
     queryKey: ["timeclock-report", timeclockStartDate, timeclockEndDate, timeclockStylistFilter],
-    queryFn: () => getTimeclockReport(timeclockStartDate, timeclockEndDate, timeclockStylistFilter || undefined),
+    queryFn: () => getTimeclockReport(timeclockStartDate, timeclockEndDate, timeclockStylistFilter === "all" ? undefined : timeclockStylistFilter),
     enabled: activeTab === "timeclock",
   });
 
@@ -1157,7 +1157,7 @@ export default function Dashboard() {
                             <SelectValue placeholder="All stylists" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">All stylists</SelectItem>
+                            <SelectItem value="all">All stylists</SelectItem>
                             {stylists.map(s => (
                               <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                             ))}
