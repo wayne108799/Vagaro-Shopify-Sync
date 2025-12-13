@@ -3,8 +3,13 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { ShopifyClient } from "./shopify";
 import { VagaroClient } from "./vagaro";
-import { insertStylistSchema, insertOrderSchema, insertSettingsSchema } from "@shared/schema";
+import { insertStylistSchema, insertOrderSchema, insertSettingsSchema, type Stylist } from "@shared/schema";
 import { z } from "zod";
+
+function sanitizeStylist(stylist: Stylist) {
+  const { pinHash, ...rest } = stylist;
+  return rest;
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -31,7 +36,7 @@ export async function registerRoutes(
   app.get("/api/stylists", async (_req, res) => {
     try {
       const stylists = await storage.getStylists();
-      res.json(stylists);
+      res.json(stylists.map(sanitizeStylist));
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -41,7 +46,7 @@ export async function registerRoutes(
     try {
       const validated = insertStylistSchema.parse(req.body);
       const stylist = await storage.createStylist(validated);
-      res.json(stylist);
+      res.json(sanitizeStylist(stylist));
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -53,7 +58,7 @@ export async function registerRoutes(
       if (!stylist) {
         return res.status(404).json({ error: "Stylist not found" });
       }
-      res.json(stylist);
+      res.json(sanitizeStylist(stylist));
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -160,7 +165,7 @@ export async function registerRoutes(
       
       res.json({ 
         message: `Synced ${syncedStylists.length} stylists from Vagaro`,
-        stylists: syncedStylists,
+        stylists: syncedStylists.map(sanitizeStylist),
         businessId: businessId
       });
     } catch (error: any) {
@@ -409,11 +414,11 @@ export async function registerRoutes(
   // Stylist login
   app.post("/api/stylist/login", async (req, res) => {
     try {
-      const { name, pin } = req.body;
-      if (!name || !pin) {
-        return res.status(400).json({ error: "Name and PIN are required" });
+      const { stylistId, pin } = req.body;
+      if (!stylistId || !pin) {
+        return res.status(400).json({ error: "Stylist ID and PIN are required" });
       }
-      const stylist = await storage.getStylistByName(name);
+      const stylist = await storage.getStylist(stylistId);
       if (!stylist || !stylist.pinHash) {
         return res.status(401).json({ error: "Invalid credentials" });
       }

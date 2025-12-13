@@ -46,18 +46,33 @@ export default function StylistDashboard() {
   const { toast } = useToast();
 
   const { data: me, isLoading: meLoading, error: meError } = useQuery<StylistMe>({
-    queryKey: ["/api/stylist/me"],
+    queryKey: ["stylist-me"],
+    queryFn: async () => {
+      const res = await fetch("/api/stylist/me");
+      if (!res.ok) throw new Error("Not authenticated");
+      return res.json();
+    },
     retry: false,
   });
 
   const { data: stats } = useQuery<Stats>({
-    queryKey: ["/api/stylist/me/stats"],
+    queryKey: ["stylist-me-stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/stylist/me/stats");
+      if (!res.ok) throw new Error("Failed to fetch stats");
+      return res.json();
+    },
     enabled: !!me,
     refetchInterval: 30000,
   });
 
   const { data: orders } = useQuery<Order[]>({
-    queryKey: ["/api/stylist/me/orders"],
+    queryKey: ["stylist-me-orders"],
+    queryFn: async () => {
+      const res = await fetch("/api/stylist/me/orders");
+      if (!res.ok) throw new Error("Failed to fetch orders");
+      return res.json();
+    },
     enabled: !!me,
     refetchInterval: 30000,
   });

@@ -2,17 +2,12 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-
-interface Stylist {
-  id: string;
-  name: string;
-  enabled: boolean;
-}
+import { getStylists } from "@/lib/api";
+import type { Stylist } from "@shared/schema";
 
 export default function StylistLogin() {
   const [, setLocation] = useLocation();
@@ -22,7 +17,8 @@ export default function StylistLogin() {
   const { toast } = useToast();
 
   const { data: stylists } = useQuery<Stylist[]>({
-    queryKey: ["/api/stylists"],
+    queryKey: ["stylists"],
+    queryFn: getStylists,
   });
 
   const enabledStylists = stylists?.filter(s => s.enabled) || [];
@@ -38,7 +34,7 @@ export default function StylistLogin() {
       const response = await fetch("/api/stylist/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: selectedStylist, pin }),
+        body: JSON.stringify({ stylistId: selectedStylist, pin }),
       });
 
       const data = await response.json();
@@ -47,6 +43,7 @@ export default function StylistLogin() {
       }
 
       toast({ title: "Welcome!", description: `Logged in as ${data.stylist.name}` });
+      setPin("");
       setLocation("/stylist/dashboard");
     } catch (error: any) {
       toast({ title: "Login Failed", description: error.message, variant: "destructive" });
@@ -81,7 +78,7 @@ export default function StylistLogin() {
               </SelectTrigger>
               <SelectContent>
                 {enabledStylists.map((stylist) => (
-                  <SelectItem key={stylist.id} value={stylist.name} data-testid={`option-stylist-${stylist.id}`}>
+                  <SelectItem key={stylist.id} value={stylist.id} data-testid={`option-stylist-${stylist.id}`}>
                     {stylist.name}
                   </SelectItem>
                 ))}

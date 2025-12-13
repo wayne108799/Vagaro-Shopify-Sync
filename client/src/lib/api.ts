@@ -70,3 +70,16 @@ export async function syncStylistsFromVagaro(): Promise<{ message: string; styli
   }
   return res.json();
 }
+
+export async function setStylistPin(stylistId: string, pin: string): Promise<{ message: string }> {
+  const res = await fetch(`/api/stylists/${stylistId}/pin`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pin }),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to set PIN");
+  }
+  return res.json();
+}

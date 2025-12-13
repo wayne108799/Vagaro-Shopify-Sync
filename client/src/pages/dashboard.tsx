@@ -13,6 +13,7 @@ import {
   DollarSign,
   Copy,
   Link,
+  Key,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,14 +26,19 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls, syncStylistsFromVagaro } from "@/lib/api";
+import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls, syncStylistsFromVagaro, setStylistPin } from "@/lib/api";
 import { format } from "date-fns";
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedStylistId, setSelectedStylistId] = useState("");
   const [vagaroBusinessId, setVagaroBusinessId] = useState<string | null>(null);
+  const [pinDialogOpen, setPinDialogOpen] = useState(false);
+  const [pinStylistId, setPinStylistId] = useState<string | null>(null);
+  const [pinStylistName, setPinStylistName] = useState<string>("");
+  const [pinValue, setPinValue] = useState("");
   const queryClient = useQueryClient();
 
   const { data: stylists = [] } = useQuery({
@@ -105,6 +111,27 @@ export default function Dashboard() {
       toast.error(error.message || "Failed to sync stylists");
     },
   });
+
+  const setPinMutation = useMutation({
+    mutationFn: ({ id, pin }: { id: string; pin: string }) => setStylistPin(id, pin),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stylists"] });
+      toast.success("PIN set successfully");
+      setPinDialogOpen(false);
+      setPinValue("");
+      setPinStylistId(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to set PIN");
+    },
+  });
+
+  const openPinDialog = (stylistId: string, stylistName: string) => {
+    setPinStylistId(stylistId);
+    setPinStylistName(stylistName);
+    setPinValue("");
+    setPinDialogOpen(true);
+  };
 
   useEffect(() => {
     if (stylists.length > 0 && !selectedStylistId) {
@@ -400,6 +427,15 @@ export default function Dashboard() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openPinDialog(stylist.id, stylist.name)}
+                              data-testid={`button-set-pin-${stylist.id}`}
+                            >
+                              <Key className="w-3 h-3 mr-1" />
+                              {stylist.pinHash ? "Change PIN" : "Set PIN"}
+                            </Button>
                             <span className="text-xs text-muted-foreground">Commission:</span>
                             <Input 
                               className="w-16 h-8" 
@@ -848,6 +884,41 @@ export default function Dashboard() {
           </main>
         </ScrollArea>
       </div>
+
+      <Dialog open={pinDialogOpen} onOpenChange={setPinDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set PIN for {pinStylistName}</DialogTitle>
+            <DialogDescription>
+              Enter a 4-digit PIN that this stylist will use to log in to their dashboard.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="pin">PIN (4+ digits)</Label>
+            <Input
+              id="pin"
+              type="password"
+              placeholder="Enter PIN"
+              value={pinValue}
+              onChange={(e) => setPinValue(e.target.value.replace(/\D/g, ""))}
+              maxLength={6}
+              data-testid="input-pin"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPinDialogOpen(false)} data-testid="button-cancel-pin">
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => pinStylistId && setPinMutation.mutate({ id: pinStylistId, pin: pinValue })}
+              disabled={pinValue.length < 4 || setPinMutation.isPending}
+              data-testid="button-save-pin"
+            >
+              {setPinMutation.isPending ? "Saving..." : "Save PIN"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
