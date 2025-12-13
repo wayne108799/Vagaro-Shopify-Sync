@@ -19,7 +19,7 @@ import {
   commissionTiers,
   timeEntries
 } from "@shared/schema";
-import { eq, desc, and, gte, asc, isNull } from "drizzle-orm";
+import { eq, desc, and, gte, lte, asc, isNull } from "drizzle-orm";
 
 function getPayPeriod(date: Date) {
   const day = date.getDate();
@@ -74,6 +74,12 @@ export interface IStorage {
   clockOut(stylistId: string): Promise<TimeEntry | undefined>;
   getTimeEntries(stylistId: string, payPeriodStart: string, payPeriodEnd: string): Promise<TimeEntry[]>;
   getPayPeriodHours(stylistId: string, payPeriodStart: string, payPeriodEnd: string): Promise<number>;
+  
+  getAllTimeEntries(filters?: { stylistId?: string; startDate?: string; endDate?: string }): Promise<TimeEntry[]>;
+  createTimeEntry(data: InsertTimeEntry): Promise<TimeEntry>;
+  updateTimeEntry(id: string, data: Partial<InsertTimeEntry>): Promise<TimeEntry | undefined>;
+  deleteTimeEntry(id: string): Promise<boolean>;
+  getTimeclockReport(startDate: string, endDate: string, stylistId?: string): Promise<{ stylistId: string; stylistName: string; totalHours: number; hourlyRate: string; totalEarnings: number }[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -318,6 +324,65 @@ export class DatabaseStorage implements IStorage {
     }
     
     return Math.round((totalMs / (1000 * 60 * 60)) * 100) / 100;
+  }
+
+  async getAllTimeEntries(filters?: { stylistId?: string; startDate?: string; endDate?: string }): Promise<TimeEntry[]> {
+    const conditions = [];
+    
+    if (filters?.stylistId) {
+      conditions.push(eq(timeEntries.stylistId, filters.stylistId));
+    }
+    if (filters?.startDate) {
+      conditions.push(gte(timeEntries.clockIn, new Date(filters.startDate + "T00:00:00")));
+    }
+    if (filters?.endDate) {
+      conditions.push(lte(timeEntries.clockIn, new Date(filters.endDate + "T23:59:59.999")));
+    }
+    
+    let query = db.select().from(timeEntries);
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    return await query.orderBy(desc(timeEntries.clockIn));
+  }
+
+  async createTimeEntry(data: InsertTimeEntry): Promise<TimeEntry> {
+    const result = await db.insert(timeEntries).values(data).returning();
+    return result[0];
+  }
+
+  async updateTimeEntry(id: string, data: Partial<InsertTimeEntry>): Promise<TimeEntry | undefined> {
+    const result = await db.update(timeEntries).set(data).where(eq(timeEntries.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteTimeEntry(id: string): Promise<boolean> {
+    const result = await db.delete(timeEntries).where(eq(timeEntries.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getTimeclockReport(startDate: string, endDate: string, stylistId?: string): Promise<{ stylistId: string; stylistName: string; totalHours: number; hourlyRate: string; totalEarnings: number }[]> {
+    const allStylists = await this.getStylists();
+    const filteredStylists = stylistId ? allStylists.filter(s => s.id === stylistId) : allStylists;
+    
+    const results = [];
+    
+    for (const stylist of filteredStylists) {
+      const hours = await this.getPayPeriodHours(stylist.id, startDate, endDate);
+      const hourlyRate = stylist.hourlyRate || "0";
+      const totalEarnings = hours * parseFloat(hourlyRate);
+      
+      results.push({
+        stylistId: stylist.id,
+        stylistName: stylist.name,
+        totalHours: hours,
+        hourlyRate,
+        totalEarnings: Math.round(totalEarnings * 100) / 100,
+      });
+    }
+    
+    return results;
   }
 }
 

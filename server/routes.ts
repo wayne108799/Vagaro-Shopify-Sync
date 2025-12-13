@@ -607,5 +607,97 @@ export async function registerRoutes(
     }
   });
 
+  // Admin Timeclock - get all entries with filters
+  app.get("/api/admin/timeclock/entries", async (req, res) => {
+    try {
+      const filters: { stylistId?: string; startDate?: string; endDate?: string } = {};
+      if (req.query.stylistId) filters.stylistId = req.query.stylistId as string;
+      if (req.query.startDate) filters.startDate = req.query.startDate as string;
+      if (req.query.endDate) filters.endDate = req.query.endDate as string;
+      
+      const entries = await storage.getAllTimeEntries(filters);
+      res.json(entries);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin Timeclock - create entry
+  app.post("/api/admin/timeclock/entries", async (req, res) => {
+    try {
+      const { stylistId, clockIn, clockOut } = req.body;
+      if (!stylistId || !clockIn) {
+        return res.status(400).json({ error: "stylistId and clockIn are required" });
+      }
+      const clockInDate = new Date(clockIn);
+      const payPeriod = getPayPeriod(clockInDate);
+      const entry = await storage.createTimeEntry({
+        stylistId,
+        clockIn: clockInDate,
+        clockOut: clockOut ? new Date(clockOut) : undefined,
+        payPeriodStart: payPeriod.start,
+        payPeriodEnd: payPeriod.end,
+      });
+      res.json(entry);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin Timeclock - update entry
+  app.patch("/api/admin/timeclock/entries/:id", async (req, res) => {
+    try {
+      const { clockIn, clockOut } = req.body;
+      const updateData: any = {};
+      if (clockIn) {
+        updateData.clockIn = new Date(clockIn);
+        const payPeriod = getPayPeriod(updateData.clockIn);
+        updateData.payPeriodStart = payPeriod.start;
+        updateData.payPeriodEnd = payPeriod.end;
+      }
+      if (clockOut !== undefined) {
+        updateData.clockOut = clockOut ? new Date(clockOut) : null;
+      }
+      const entry = await storage.updateTimeEntry(req.params.id, updateData);
+      if (!entry) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+      res.json(entry);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin Timeclock - delete entry
+  app.delete("/api/admin/timeclock/entries/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteTimeEntry(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Entry not found" });
+      }
+      res.json({ message: "Entry deleted" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin Timeclock - get report
+  app.get("/api/admin/timeclock/report", async (req, res) => {
+    try {
+      const { startDate, endDate, stylistId } = req.query;
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: "startDate and endDate are required" });
+      }
+      const report = await storage.getTimeclockReport(
+        startDate as string,
+        endDate as string,
+        stylistId as string | undefined
+      );
+      res.json(report);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }

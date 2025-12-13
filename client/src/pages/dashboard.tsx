@@ -16,6 +16,9 @@ import {
   Key,
   Trash2,
   Layers,
+  Clock,
+  Plus,
+  Pencil,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,7 +33,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls, syncStylistsFromVagaro, setStylistPin, deleteStylist, getCommissionTiers, setCommissionTiers, type CommissionTier } from "@/lib/api";
+import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls, syncStylistsFromVagaro, setStylistPin, deleteStylist, getCommissionTiers, setCommissionTiers, type CommissionTier, getAdminTimeEntries, createAdminTimeEntry, updateAdminTimeEntry, deleteAdminTimeEntry, getTimeclockReport, type TimeEntry, type TimeclockReportEntry } from "@/lib/api";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 
@@ -49,6 +52,31 @@ export default function Dashboard() {
   const [tiersStylistId, setTiersStylistId] = useState<string | null>(null);
   const [tiersStylistName, setTiersStylistName] = useState<string>("");
   const [editingTiers, setEditingTiers] = useState<Omit<CommissionTier, "id" | "stylistId">[]>([]);
+  const [timeclockStartDate, setTimeclockStartDate] = useState(() => {
+    const today = new Date();
+    const day = today.getDate();
+    if (day <= 15) {
+      return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+    } else {
+      return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-16`;
+    }
+  });
+  const [timeclockEndDate, setTimeclockEndDate] = useState(() => {
+    const today = new Date();
+    const day = today.getDate();
+    if (day <= 15) {
+      return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-15`;
+    } else {
+      const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+      return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${lastDay}`;
+    }
+  });
+  const [timeclockStylistFilter, setTimeclockStylistFilter] = useState("");
+  const [entryDialogOpen, setEntryDialogOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
+  const [entryForm, setEntryForm] = useState({ stylistId: "", clockIn: "", clockOut: "" });
+  const [deleteEntryDialogOpen, setDeleteEntryDialogOpen] = useState(false);
+  const [deleteEntryId, setDeleteEntryId] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const { data: stylists = [] } = useQuery({
@@ -82,6 +110,22 @@ export default function Dashboard() {
     queryKey: ["webhook-urls"],
     queryFn: getWebhookUrls,
     enabled: activeTab === "connections",
+  });
+
+  const { data: timeEntries = [] } = useQuery({
+    queryKey: ["admin-time-entries", timeclockStartDate, timeclockEndDate, timeclockStylistFilter],
+    queryFn: () => getAdminTimeEntries({ 
+      startDate: timeclockStartDate, 
+      endDate: timeclockEndDate,
+      stylistId: timeclockStylistFilter || undefined 
+    }),
+    enabled: activeTab === "timeclock",
+  });
+
+  const { data: timeclockReport = [] } = useQuery({
+    queryKey: ["timeclock-report", timeclockStartDate, timeclockEndDate, timeclockStylistFilter],
+    queryFn: () => getTimeclockReport(timeclockStartDate, timeclockEndDate, timeclockStylistFilter || undefined),
+    enabled: activeTab === "timeclock",
   });
 
   const copyToClipboard = (text: string, label: string) => {
@@ -214,6 +258,79 @@ export default function Dashboard() {
     ));
   };
 
+  const createEntryMutation = useMutation({
+    mutationFn: (data: { stylistId: string; clockIn: string; clockOut?: string }) => createAdminTimeEntry(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-time-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["timeclock-report"] });
+      toast.success("Time entry created");
+      setEntryDialogOpen(false);
+      setEntryForm({ stylistId: "", clockIn: "", clockOut: "" });
+    },
+    onError: (error: any) => toast.error(error.message || "Failed to create entry"),
+  });
+
+  const updateEntryMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { clockIn?: string; clockOut?: string | null } }) => updateAdminTimeEntry(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-time-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["timeclock-report"] });
+      toast.success("Time entry updated");
+      setEntryDialogOpen(false);
+      setEditingEntry(null);
+    },
+    onError: (error: any) => toast.error(error.message || "Failed to update entry"),
+  });
+
+  const deleteEntryMutation = useMutation({
+    mutationFn: (id: string) => deleteAdminTimeEntry(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-time-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["timeclock-report"] });
+      toast.success("Time entry deleted");
+      setDeleteEntryDialogOpen(false);
+      setDeleteEntryId(null);
+    },
+    onError: (error: any) => toast.error(error.message || "Failed to delete entry"),
+  });
+
+  const openEntryDialog = (entry?: TimeEntry) => {
+    if (entry) {
+      setEditingEntry(entry);
+      setEntryForm({
+        stylistId: entry.stylistId,
+        clockIn: format(new Date(entry.clockIn), "yyyy-MM-dd'T'HH:mm"),
+        clockOut: entry.clockOut ? format(new Date(entry.clockOut), "yyyy-MM-dd'T'HH:mm") : "",
+      });
+    } else {
+      setEditingEntry(null);
+      setEntryForm({ stylistId: stylists[0]?.id || "", clockIn: "", clockOut: "" });
+    }
+    setEntryDialogOpen(true);
+  };
+
+  const handleEntrySave = () => {
+    if (!entryForm.stylistId || !entryForm.clockIn) {
+      toast.error("Stylist and clock-in time are required");
+      return;
+    }
+    if (editingEntry) {
+      updateEntryMutation.mutate({
+        id: editingEntry.id,
+        data: {
+          clockIn: new Date(entryForm.clockIn).toISOString(),
+          clockOut: entryForm.clockOut ? new Date(entryForm.clockOut).toISOString() : null,
+        },
+      });
+    } else {
+      createEntryMutation.mutate({
+        stylistId: entryForm.stylistId,
+        clockIn: new Date(entryForm.clockIn).toISOString(),
+        clockOut: entryForm.clockOut ? new Date(entryForm.clockOut).toISOString() : undefined,
+      });
+    }
+  };
+
   useEffect(() => {
     if (stylists.length > 0 && !selectedStylistId) {
       setSelectedStylistId(stylists[0].id);
@@ -279,6 +396,14 @@ export default function Dashboard() {
             data-testid="tab-logs"
           >
             <Activity className="mr-2 w-4 h-4" /> Activity Logs
+          </Button>
+          <Button 
+            variant={activeTab === "timeclock" ? "secondary" : "ghost"} 
+            className="w-full justify-start" 
+            onClick={() => setActiveTab("timeclock")}
+            data-testid="tab-timeclock"
+          >
+            <Clock className="mr-2 w-4 h-4" /> Timeclock
           </Button>
           
           <div className="text-xs font-semibold text-muted-foreground mt-6 mb-2 px-4 uppercase tracking-wider">Stylist Portal</div>
@@ -990,9 +1115,219 @@ export default function Dashboard() {
               </div>
             )}
 
+            {/* TIMECLOCK TAB */}
+            {activeTab === "timeclock" && (
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>Timeclock Management</CardTitle>
+                        <CardDescription>View and manage stylist time entries</CardDescription>
+                      </div>
+                      <Button onClick={() => openEntryDialog()} data-testid="button-add-entry">
+                        <Plus className="w-4 h-4 mr-2" /> Add Entry
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-4 mb-6">
+                      <div className="space-y-1">
+                        <Label>Start Date</Label>
+                        <Input
+                          type="date"
+                          value={timeclockStartDate}
+                          onChange={(e) => setTimeclockStartDate(e.target.value)}
+                          data-testid="input-timeclock-start"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>End Date</Label>
+                        <Input
+                          type="date"
+                          value={timeclockEndDate}
+                          onChange={(e) => setTimeclockEndDate(e.target.value)}
+                          data-testid="input-timeclock-end"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Stylist</Label>
+                        <Select value={timeclockStylistFilter} onValueChange={setTimeclockStylistFilter}>
+                          <SelectTrigger className="w-[180px]" data-testid="select-timeclock-stylist">
+                            <SelectValue placeholder="All stylists" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="">All stylists</SelectItem>
+                            {stylists.map(s => (
+                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Stylist</TableHead>
+                          <TableHead>Clock In</TableHead>
+                          <TableHead>Clock Out</TableHead>
+                          <TableHead>Duration</TableHead>
+                          <TableHead className="w-[100px]">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {timeEntries.map((entry) => {
+                          const stylist = stylists.find(s => s.id === entry.stylistId);
+                          const clockIn = new Date(entry.clockIn);
+                          const clockOut = entry.clockOut ? new Date(entry.clockOut) : null;
+                          const durationMs = clockOut ? clockOut.getTime() - clockIn.getTime() : Date.now() - clockIn.getTime();
+                          const hours = Math.floor(durationMs / (1000 * 60 * 60));
+                          const mins = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+                          return (
+                            <TableRow key={entry.id} data-testid={`entry-row-${entry.id}`}>
+                              <TableCell>{stylist?.name || 'Unknown'}</TableCell>
+                              <TableCell>{format(clockIn, "PPp")}</TableCell>
+                              <TableCell>{clockOut ? format(clockOut, "PPp") : <Badge variant="outline">Active</Badge>}</TableCell>
+                              <TableCell>{hours}h {mins}m</TableCell>
+                              <TableCell>
+                                <div className="flex gap-1">
+                                  <Button variant="ghost" size="sm" onClick={() => openEntryDialog(entry)} data-testid={`button-edit-entry-${entry.id}`}>
+                                    <Pencil className="w-4 h-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" onClick={() => { setDeleteEntryId(entry.id); setDeleteEntryDialogOpen(true); }} data-testid={`button-delete-entry-${entry.id}`}>
+                                    <Trash2 className="w-4 h-4 text-destructive" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                        {timeEntries.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                              No time entries for this period
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Pay Period Report</CardTitle>
+                    <CardDescription>Hours and earnings summary for {timeclockStartDate} to {timeclockEndDate}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Stylist</TableHead>
+                          <TableHead className="text-right">Total Hours</TableHead>
+                          <TableHead className="text-right">Hourly Rate</TableHead>
+                          <TableHead className="text-right">Total Earnings</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {timeclockReport.map((row) => (
+                          <TableRow key={row.stylistId} data-testid={`report-row-${row.stylistId}`}>
+                            <TableCell className="font-medium">{row.stylistName}</TableCell>
+                            <TableCell className="text-right">{row.totalHours.toFixed(2)}h</TableCell>
+                            <TableCell className="text-right">${parseFloat(row.hourlyRate).toFixed(2)}/hr</TableCell>
+                            <TableCell className="text-right font-bold">${row.totalEarnings.toFixed(2)}</TableCell>
+                          </TableRow>
+                        ))}
+                        {timeclockReport.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                              No data for this period
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
           </main>
         </ScrollArea>
       </div>
+
+      <Dialog open={entryDialogOpen} onOpenChange={setEntryDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingEntry ? "Edit Time Entry" : "Add Time Entry"}</DialogTitle>
+            <DialogDescription>
+              {editingEntry ? "Update the clock in/out times" : "Create a new time entry for a stylist"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            {!editingEntry && (
+              <div className="space-y-2">
+                <Label>Stylist</Label>
+                <Select value={entryForm.stylistId} onValueChange={(v) => setEntryForm(f => ({ ...f, stylistId: v }))}>
+                  <SelectTrigger data-testid="select-entry-stylist">
+                    <SelectValue placeholder="Select stylist" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stylists.map(s => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Clock In</Label>
+              <Input
+                type="datetime-local"
+                value={entryForm.clockIn}
+                onChange={(e) => setEntryForm(f => ({ ...f, clockIn: e.target.value }))}
+                data-testid="input-entry-clockin"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Clock Out (leave empty if still working)</Label>
+              <Input
+                type="datetime-local"
+                value={entryForm.clockOut}
+                onChange={(e) => setEntryForm(f => ({ ...f, clockOut: e.target.value }))}
+                data-testid="input-entry-clockout"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEntryDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleEntrySave} disabled={createEntryMutation.isPending || updateEntryMutation.isPending} data-testid="button-save-entry">
+              {createEntryMutation.isPending || updateEntryMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={deleteEntryDialogOpen} onOpenChange={setDeleteEntryDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Time Entry?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this time entry. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteEntryId && deleteEntryMutation.mutate(deleteEntryId)}
+              data-testid="button-confirm-delete-entry"
+            >
+              {deleteEntryMutation.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={pinDialogOpen} onOpenChange={setPinDialogOpen}>
         <DialogContent>

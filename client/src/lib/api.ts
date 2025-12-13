@@ -152,3 +152,94 @@ export async function clockOut(): Promise<any> {
   }
   return res.json();
 }
+
+export interface TimeEntry {
+  id: string;
+  stylistId: string;
+  clockIn: string;
+  clockOut: string | null;
+  payPeriodStart: string;
+  payPeriodEnd: string;
+}
+
+export async function getAdminTimeEntries(filters?: {
+  stylistId?: string;
+  startDate?: string;
+  endDate?: string;
+}): Promise<TimeEntry[]> {
+  const params = new URLSearchParams();
+  if (filters?.stylistId) params.set("stylistId", filters.stylistId);
+  if (filters?.startDate) params.set("startDate", filters.startDate);
+  if (filters?.endDate) params.set("endDate", filters.endDate);
+  
+  const res = await fetch(`/api/admin/timeclock/entries?${params}`);
+  if (!res.ok) throw new Error("Failed to fetch time entries");
+  return res.json();
+}
+
+export async function createAdminTimeEntry(data: {
+  stylistId: string;
+  clockIn: string;
+  clockOut?: string;
+}): Promise<TimeEntry> {
+  const res = await fetch("/api/admin/timeclock/entries", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to create time entry");
+  }
+  return res.json();
+}
+
+export async function updateAdminTimeEntry(id: string, data: {
+  clockIn?: string;
+  clockOut?: string | null;
+}): Promise<TimeEntry> {
+  const res = await fetch(`/api/admin/timeclock/entries/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to update time entry");
+  }
+  return res.json();
+}
+
+export async function deleteAdminTimeEntry(id: string): Promise<{ message: string }> {
+  const res = await fetch(`/api/admin/timeclock/entries/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to delete time entry");
+  }
+  return res.json();
+}
+
+export interface TimeclockReportEntry {
+  stylistId: string;
+  stylistName: string;
+  totalHours: number;
+  hourlyRate: string;
+  totalEarnings: number;
+}
+
+export async function getTimeclockReport(
+  startDate: string,
+  endDate: string,
+  stylistId?: string
+): Promise<TimeclockReportEntry[]> {
+  const params = new URLSearchParams();
+  params.set("startDate", startDate);
+  params.set("endDate", endDate);
+  if (stylistId) params.set("stylistId", stylistId);
+  
+  const res = await fetch(`/api/admin/timeclock/report?${params}`);
+  if (!res.ok) throw new Error("Failed to fetch timeclock report");
+  return res.json();
+}

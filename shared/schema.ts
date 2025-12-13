@@ -22,6 +22,7 @@ export const stylists = pgTable("stylists", {
   name: text("name").notNull(),
   role: text("role").notNull(),
   commissionRate: integer("commission_rate").notNull(),
+  hourlyRate: decimal("hourly_rate", { precision: 10, scale: 2 }).default("0"),
   vagaroId: text("vagaro_id"),
   shopifyStaffId: text("shopify_staff_id"),
   pinHash: text("pin_hash"),
