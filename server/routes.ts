@@ -192,9 +192,9 @@ export async function registerRoutes(
       
       console.log(`[Vagaro Webhook] Processing appointment ${appointmentId} for service provider ${serviceProviderId}`);
       
-      // Store businessId in settings if not already saved
-      if (businessId && !settings.vagaroBusinessId) {
-        console.log(`[Vagaro Webhook] Saving businessId to settings: ${businessId}`);
+      // Always store the latest businessId from webhook
+      if (businessId && settings.vagaroBusinessId !== businessId) {
+        console.log(`[Vagaro Webhook] Updating businessId in settings: ${businessId}`);
         await storage.upsertSettings({ vagaroBusinessId: businessId });
       }
 

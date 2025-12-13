@@ -204,9 +204,9 @@ export class VagaroClient {
 
   async getEmployees(): Promise<VagaroEmployee[]> {
     const token = await this.getAccessToken();
-    const businessId = await this.getBusinessId();
     
-    const url = `${this.baseUrl}/merchants/${businessId}/employees`;
+    // Use encId (Merchant ID) for /merchants endpoints, not businessId
+    const url = `${this.baseUrl}/merchants/${this.encId}/employees`;
     console.log(`[Vagaro] Fetching employees from: ${url}`);
 
     const response = await fetch(url, {
@@ -250,9 +250,9 @@ export class VagaroClient {
 
   async getEmployeeById(serviceProviderId: string): Promise<VagaroEmployee | null> {
     const token = await this.getAccessToken();
-    const businessId = await this.getBusinessId();
     
-    const url = `${this.baseUrl}/merchants/${businessId}/employees/${serviceProviderId}`;
+    // Use encId (Merchant ID) for /merchants endpoints, not businessId
+    const url = `${this.baseUrl}/merchants/${this.encId}/employees/${serviceProviderId}`;
     console.log(`[Vagaro] Fetching employee from: ${url}`);
 
     const response = await fetch(url, {
@@ -281,9 +281,9 @@ export class VagaroClient {
 
   async getCustomerById(customerId: string): Promise<VagaroCustomer | null> {
     const token = await this.getAccessToken();
-    const businessId = await this.getBusinessId();
     
-    const url = `${this.baseUrl}/merchants/${businessId}/customers/${customerId}`;
+    // Use encId (Merchant ID) for /merchants endpoints, not businessId
+    const url = `${this.baseUrl}/merchants/${this.encId}/customers/${customerId}`;
     console.log(`[Vagaro] Fetching customer from: ${url}`);
 
     const response = await fetch(url, {
