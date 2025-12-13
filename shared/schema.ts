@@ -56,6 +56,7 @@ export const settings = pgTable("settings", {
   vagaroClientId: text("vagaro_client_id"),
   vagaroClientSecret: text("vagaro_client_secret"),
   vagaroMerchantId: text("vagaro_merchant_id"),
+  vagaroBusinessId: text("vagaro_business_id"),
   vagaroRegion: text("vagaro_region").default("us"),
   shopifyStoreUrl: text("shopify_store_url"),
   shopifyAccessToken: text("shopify_access_token"),

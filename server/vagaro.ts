@@ -16,6 +16,15 @@ interface VagaroEmployee {
   lastName: string;
   jobTitle?: string;
   email?: string;
+  phoneNumber?: string;
+}
+
+interface VagaroCustomer {
+  customerId: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phoneNumber?: string;
 }
 
 interface VagaroLocation {
@@ -38,6 +47,7 @@ export class VagaroClient {
     vagaroClientId: string | null;
     vagaroClientSecret: string | null;
     vagaroMerchantId: string | null;
+    vagaroBusinessId?: string | null;
     vagaroRegion: string | null;
   }) {
     if (!settings.vagaroClientId || !settings.vagaroClientSecret) {
@@ -52,8 +62,14 @@ export class VagaroClient {
     this.clientId = settings.vagaroClientId;
     this.clientSecret = settings.vagaroClientSecret;
     this.encId = settings.vagaroMerchantId;
+    this.resolvedBusinessId = settings.vagaroBusinessId || null;
     
-    console.log(`[Vagaro] Initialized client with region: ${this.region}, encId: ${this.encId}, baseUrl: ${this.baseUrl}`);
+    console.log(`[Vagaro] Initialized client with region: ${this.region}, encId: ${this.encId}, businessId: ${this.resolvedBusinessId}, baseUrl: ${this.baseUrl}`);
+  }
+
+  setBusinessId(businessId: string) {
+    this.resolvedBusinessId = businessId;
+    console.log(`[Vagaro] Business ID set to: ${businessId}`);
   }
 
   async getAccessToken(): Promise<string> {
@@ -230,5 +246,67 @@ export class VagaroClient {
 
     console.log(`[Vagaro] Found ${employees.length} employees`);
     return employees;
+  }
+
+  async getEmployeeById(serviceProviderId: string): Promise<VagaroEmployee | null> {
+    const token = await this.getAccessToken();
+    const businessId = await this.getBusinessId();
+    
+    const url = `${this.baseUrl}/merchants/${businessId}/employees/${serviceProviderId}`;
+    console.log(`[Vagaro] Fetching employee from: ${url}`);
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "accept": "application/json",
+        "accessToken": token,
+      },
+    });
+
+    const rawText = await response.text();
+    console.log(`[Vagaro] Employee response (status ${response.status}):`, rawText.substring(0, 500));
+    
+    if (response.status === 404 || !rawText || rawText.trim() === '') {
+      return null;
+    }
+
+    try {
+      const data = JSON.parse(rawText);
+      return data.employee || data.data?.employee || data.serviceProvider || data.data || data;
+    } catch (e) {
+      console.log(`[Vagaro] Failed to parse employee response`);
+      return null;
+    }
+  }
+
+  async getCustomerById(customerId: string): Promise<VagaroCustomer | null> {
+    const token = await this.getAccessToken();
+    const businessId = await this.getBusinessId();
+    
+    const url = `${this.baseUrl}/merchants/${businessId}/customers/${customerId}`;
+    console.log(`[Vagaro] Fetching customer from: ${url}`);
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "accept": "application/json",
+        "accessToken": token,
+      },
+    });
+
+    const rawText = await response.text();
+    console.log(`[Vagaro] Customer response (status ${response.status}):`, rawText.substring(0, 500));
+    
+    if (response.status === 404 || !rawText || rawText.trim() === '') {
+      return null;
+    }
+
+    try {
+      const data = JSON.parse(rawText);
+      return data.customer || data.data?.customer || data.data || data;
+    } catch (e) {
+      console.log(`[Vagaro] Failed to parse customer response`);
+      return null;
+    }
   }
 }

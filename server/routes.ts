@@ -192,21 +192,76 @@ export async function registerRoutes(
       
       console.log(`[Vagaro Webhook] Processing appointment ${appointmentId} for service provider ${serviceProviderId}`);
       
+      // Store businessId in settings if not already saved
+      if (businessId && !settings.vagaroBusinessId) {
+        console.log(`[Vagaro Webhook] Saving businessId to settings: ${businessId}`);
+        await storage.upsertSettings({ vagaroBusinessId: businessId });
+      }
+
+      // Try to fetch real employee and customer data from Vagaro API
+      let employeeName = `Stylist ${serviceProviderId?.substring(0, 8) || 'Unknown'}`;
+      let employeeRole = payload.serviceCategory || "Stylist";
+      let customerName = `Customer ${customerId?.substring(0, 8) || 'Unknown'}`;
+      let customerEmail: string | undefined = undefined;
+
+      try {
+        if (settings.vagaroClientId && settings.vagaroClientSecret && settings.vagaroMerchantId) {
+          const vagaroClient = new VagaroClient({
+            ...settings,
+            vagaroBusinessId: businessId || settings.vagaroBusinessId,
+          });
+          
+          // Fetch real employee details
+          if (serviceProviderId) {
+            console.log(`[Vagaro Webhook] Fetching employee details for ${serviceProviderId}`);
+            const employee = await vagaroClient.getEmployeeById(serviceProviderId);
+            if (employee) {
+              employeeName = `${employee.firstName || ''} ${employee.lastName || ''}`.trim() || employeeName;
+              employeeRole = employee.jobTitle || employeeRole;
+              console.log(`[Vagaro Webhook] Found employee: ${employeeName}`);
+            }
+          }
+          
+          // Fetch real customer details
+          if (customerId) {
+            console.log(`[Vagaro Webhook] Fetching customer details for ${customerId}`);
+            const customer = await vagaroClient.getCustomerById(customerId);
+            if (customer) {
+              customerName = `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || customerName;
+              customerEmail = customer.email;
+              console.log(`[Vagaro Webhook] Found customer: ${customerName}, email: ${customerEmail}`);
+            }
+          }
+        }
+      } catch (apiError: any) {
+        console.log(`[Vagaro Webhook] Could not fetch API details, using webhook data: ${apiError.message}`);
+      }
+      
       // Find stylist by Vagaro ID (serviceProviderId)
       const allStylists = await storage.getStylists();
       let stylist = allStylists.find(s => s.vagaroId === serviceProviderId && s.enabled);
       
-      // If stylist not found, try to auto-create from webhook data
+      // If stylist not found, create with real name from API
       if (!stylist) {
-        console.log(`[Vagaro Webhook] Stylist ${serviceProviderId} not found, auto-creating...`);
+        console.log(`[Vagaro Webhook] Stylist ${serviceProviderId} not found, creating: ${employeeName}`);
         stylist = await storage.upsertStylistByVagaroId(serviceProviderId, {
-          name: `Stylist ${serviceProviderId.substring(0, 8)}`,
-          role: payload.serviceCategory || "Stylist",
+          name: employeeName,
+          role: employeeRole,
           commissionRate: 40,
           vagaroId: serviceProviderId,
           enabled: true,
         });
         console.log(`[Vagaro Webhook] Created stylist: ${stylist.name}`);
+      } else if (stylist.name.startsWith('Stylist ') && !employeeName.startsWith('Stylist ')) {
+        // Update stylist with real name if we have it
+        console.log(`[Vagaro Webhook] Updating stylist name from ${stylist.name} to ${employeeName}`);
+        stylist = await storage.upsertStylistByVagaroId(serviceProviderId, {
+          name: employeeName,
+          role: employeeRole,
+          commissionRate: stylist.commissionRate,
+          vagaroId: serviceProviderId,
+          enabled: stylist.enabled,
+        });
       }
 
       // Check if order already exists
@@ -224,8 +279,8 @@ export async function registerRoutes(
       if (settings.shopifyStoreUrl && settings.shopifyAccessToken) {
         const shopifyClient = new ShopifyClient(settings);
         const draftOrder = await shopifyClient.createDraftOrder({
-          customerName: `Customer ${customerId?.substring(0, 8) || 'Unknown'}`,
-          customerEmail: undefined,
+          customerName: customerName,
+          customerEmail: customerEmail,
           lineItems: [{
             title: serviceTitle,
             price: totalAmount.toString(),
@@ -243,8 +298,8 @@ export async function registerRoutes(
         vagaroAppointmentId: appointmentId,
         shopifyDraftOrderId,
         stylistId: stylist.id,
-        customerName: `Customer ${customerId?.substring(0, 8) || 'Unknown'}`,
-        customerEmail: undefined,
+        customerName: customerName,
+        customerEmail: customerEmail,
         services: [serviceTitle],
         totalAmount: totalAmount.toFixed(2),
         tipAmount: "0",
