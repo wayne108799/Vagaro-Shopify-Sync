@@ -387,5 +387,125 @@ export async function registerRoutes(
     }
   });
 
+  // Stylist PIN management (admin)
+  app.post("/api/stylists/:id/pin", async (req, res) => {
+    try {
+      const { pin } = req.body;
+      if (!pin || pin.length < 4) {
+        return res.status(400).json({ error: "PIN must be at least 4 digits" });
+      }
+      const crypto = await import("crypto");
+      const pinHash = crypto.createHash("sha256").update(pin).digest("hex");
+      const stylist = await storage.setStylistPin(req.params.id, pinHash);
+      if (!stylist) {
+        return res.status(404).json({ error: "Stylist not found" });
+      }
+      res.json({ message: "PIN set successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Stylist login
+  app.post("/api/stylist/login", async (req, res) => {
+    try {
+      const { name, pin } = req.body;
+      if (!name || !pin) {
+        return res.status(400).json({ error: "Name and PIN are required" });
+      }
+      const stylist = await storage.getStylistByName(name);
+      if (!stylist || !stylist.pinHash) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      const crypto = await import("crypto");
+      const pinHash = crypto.createHash("sha256").update(pin).digest("hex");
+      if (pinHash !== stylist.pinHash) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      req.session.stylistId = stylist.id;
+      res.json({ message: "Login successful", stylist: { id: stylist.id, name: stylist.name, role: stylist.role } });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Stylist logout
+  app.post("/api/stylist/logout", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Failed to logout" });
+      }
+      res.json({ message: "Logged out successfully" });
+    });
+  });
+
+  // Get current logged-in stylist
+  app.get("/api/stylist/me", async (req, res) => {
+    try {
+      if (!req.session.stylistId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const stylist = await storage.getStylist(req.session.stylistId);
+      if (!stylist) {
+        return res.status(404).json({ error: "Stylist not found" });
+      }
+      res.json({ id: stylist.id, name: stylist.name, role: stylist.role, commissionRate: stylist.commissionRate });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get stats for logged-in stylist
+  app.get("/api/stylist/me/stats", async (req, res) => {
+    try {
+      if (!req.session.stylistId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const weekStart = new Date(today);
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+
+      const [todayOrders, weekOrders] = await Promise.all([
+        storage.getOrders({ stylistId: req.session.stylistId, fromDate: today }),
+        storage.getOrders({ stylistId: req.session.stylistId, fromDate: weekStart }),
+      ]);
+
+      const todayStats = {
+        sales: todayOrders.reduce((sum, o) => sum + parseFloat(o.totalAmount), 0),
+        commission: todayOrders.reduce((sum, o) => sum + parseFloat(o.commissionAmount), 0),
+        tips: todayOrders.reduce((sum, o) => sum + parseFloat(o.tipAmount), 0),
+        orders: todayOrders.length,
+      };
+
+      const weekStats = {
+        sales: weekOrders.reduce((sum, o) => sum + parseFloat(o.totalAmount), 0),
+        commission: weekOrders.reduce((sum, o) => sum + parseFloat(o.commissionAmount), 0),
+        tips: weekOrders.reduce((sum, o) => sum + parseFloat(o.tipAmount), 0),
+        orders: weekOrders.length,
+      };
+
+      res.json({
+        today: { ...todayStats, earnings: todayStats.commission + todayStats.tips },
+        week: { ...weekStats, earnings: weekStats.commission + weekStats.tips },
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get orders for logged-in stylist
+  app.get("/api/stylist/me/orders", async (req, res) => {
+    try {
+      if (!req.session.stylistId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const orders = await storage.getOrders({ stylistId: req.session.stylistId });
+      res.json(orders);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }
