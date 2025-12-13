@@ -22,8 +22,10 @@ export interface IStorage {
   
   getStylists(): Promise<Stylist[]>;
   getStylist(id: string): Promise<Stylist | undefined>;
+  getStylistByName(name: string): Promise<Stylist | undefined>;
   createStylist(stylist: InsertStylist): Promise<Stylist>;
   updateStylist(id: string, data: Partial<InsertStylist>): Promise<Stylist | undefined>;
+  setStylistPin(id: string, pinHash: string): Promise<Stylist | undefined>;
   upsertStylistByVagaroId(vagaroId: string, data: InsertStylist): Promise<Stylist>;
   deleteStylistsNotInList(vagaroIds: string[]): Promise<void>;
   
@@ -62,6 +64,11 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  async getStylistByName(name: string): Promise<Stylist | undefined> {
+    const result = await db.select().from(stylists).where(eq(stylists.name, name)).limit(1);
+    return result[0];
+  }
+
   async createStylist(stylist: InsertStylist): Promise<Stylist> {
     const result = await db.insert(stylists).values(stylist).returning();
     return result[0];
@@ -69,6 +76,11 @@ export class DatabaseStorage implements IStorage {
 
   async updateStylist(id: string, data: Partial<InsertStylist>): Promise<Stylist | undefined> {
     const result = await db.update(stylists).set(data).where(eq(stylists.id, id)).returning();
+    return result[0];
+  }
+
+  async setStylistPin(id: string, pinHash: string): Promise<Stylist | undefined> {
+    const result = await db.update(stylists).set({ pinHash }).where(eq(stylists.id, id)).returning();
     return result[0];
   }
 

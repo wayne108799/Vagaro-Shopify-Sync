@@ -23,6 +23,8 @@ export const stylists = pgTable("stylists", {
   role: text("role").notNull(),
   commissionRate: integer("commission_rate").notNull(),
   vagaroId: text("vagaro_id"),
+  shopifyStaffId: text("shopify_staff_id"),
+  pinHash: text("pin_hash"),
   enabled: boolean("enabled").notNull().default(true),
 });
 
