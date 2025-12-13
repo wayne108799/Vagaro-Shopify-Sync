@@ -179,24 +179,43 @@ export async function registerRoutes(
         return res.json({ message: "Sync disabled" });
       }
 
-      const appointment = req.body;
+      const webhookData = req.body;
+      const payload = webhookData.payload || webhookData;
       
-      // Find stylist by Vagaro ID
+      // Extract data from Vagaro's actual payload structure
+      const serviceProviderId = payload.serviceProviderId || payload.employeeId;
+      const appointmentId = payload.appointmentId || webhookData.id;
+      const totalAmount = parseFloat(payload.amount || payload.totalAmount || "0");
+      const serviceTitle = payload.serviceTitle || payload.serviceName || "Service";
+      const customerId = payload.customerId;
+      const businessId = payload.businessId;
+      
+      console.log(`[Vagaro Webhook] Processing appointment ${appointmentId} for service provider ${serviceProviderId}`);
+      
+      // Find stylist by Vagaro ID (serviceProviderId)
       const allStylists = await storage.getStylists();
-      const stylist = allStylists.find(s => s.vagaroId === appointment.employeeId && s.enabled);
+      let stylist = allStylists.find(s => s.vagaroId === serviceProviderId && s.enabled);
       
+      // If stylist not found, try to auto-create from webhook data
       if (!stylist) {
-        return res.json({ message: "Stylist not enabled for sync" });
+        console.log(`[Vagaro Webhook] Stylist ${serviceProviderId} not found, auto-creating...`);
+        stylist = await storage.upsertStylistByVagaroId(serviceProviderId, {
+          name: `Stylist ${serviceProviderId.substring(0, 8)}`,
+          role: payload.serviceCategory || "Stylist",
+          commissionRate: 40,
+          vagaroId: serviceProviderId,
+          enabled: true,
+        });
+        console.log(`[Vagaro Webhook] Created stylist: ${stylist.name}`);
       }
 
       // Check if order already exists
-      const existing = await storage.getOrderByVagaroId(appointment.id);
+      const existing = await storage.getOrderByVagaroId(appointmentId);
       if (existing) {
         return res.json({ message: "Order already synced", orderId: existing.id });
       }
 
       // Calculate commission
-      const totalAmount = parseFloat(appointment.totalAmount || "0");
       const commissionAmount = (totalAmount * stylist.commissionRate) / 100;
 
       // Create draft order in Shopify
@@ -205,15 +224,15 @@ export async function registerRoutes(
       if (settings.shopifyStoreUrl && settings.shopifyAccessToken) {
         const shopifyClient = new ShopifyClient(settings);
         const draftOrder = await shopifyClient.createDraftOrder({
-          customerName: appointment.customerName,
-          customerEmail: appointment.customerEmail,
-          lineItems: appointment.services?.map((service: any) => ({
-            title: service.name,
-            price: service.price,
+          customerName: `Customer ${customerId?.substring(0, 8) || 'Unknown'}`,
+          customerEmail: undefined,
+          lineItems: [{
+            title: serviceTitle,
+            price: totalAmount.toString(),
             quantity: 1,
-          })) || [],
+          }],
           tags: [settings.defaultOrderTag, `stylist:${stylist.name}`],
-          note: `Vagaro Appointment #${appointment.id}`,
+          note: `Vagaro Appointment #${appointmentId}`,
         });
         
         shopifyDraftOrderId = draftOrder.id;
@@ -221,19 +240,20 @@ export async function registerRoutes(
 
       // Create order in database
       const order = await storage.createOrder({
-        vagaroAppointmentId: appointment.id,
+        vagaroAppointmentId: appointmentId,
         shopifyDraftOrderId,
         stylistId: stylist.id,
-        customerName: appointment.customerName,
-        customerEmail: appointment.customerEmail,
-        services: appointment.services?.map((s: any) => s.name) || [],
+        customerName: `Customer ${customerId?.substring(0, 8) || 'Unknown'}`,
+        customerEmail: undefined,
+        services: [serviceTitle],
         totalAmount: totalAmount.toFixed(2),
         tipAmount: "0",
         commissionAmount: commissionAmount.toFixed(2),
         status: "draft",
       });
 
-      res.json({ message: "Order created", order });
+      console.log(`[Vagaro Webhook] Order created: ${order.id}`);
+      res.json({ message: "Order created", order, businessId });
     } catch (error: any) {
       console.error("Webhook error:", error);
       res.status(500).json({ error: error.message });
