@@ -19,6 +19,10 @@ import {
   Clock,
   Plus,
   Pencil,
+  FileText,
+  Ban,
+  RotateCcw,
+  Percent,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,7 +37,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls, syncStylistsFromVagaro, setStylistPin, deleteStylist, getCommissionTiers, setCommissionTiers, type CommissionTier, getAdminTimeEntries, createAdminTimeEntry, updateAdminTimeEntry, deleteAdminTimeEntry, getTimeclockReport, type TimeEntry, type TimeclockReportEntry } from "@/lib/api";
+import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls, syncStylistsFromVagaro, setStylistPin, deleteStylist, getCommissionTiers, setCommissionTiers, type CommissionTier, getAdminTimeEntries, createAdminTimeEntry, updateAdminTimeEntry, deleteAdminTimeEntry, getTimeclockReport, type TimeEntry, type TimeclockReportEntry, getCommissionReport, getAdminOrders, createManualOrder, voidOrder, restoreOrder, getCommissionAdjustments, createCommissionAdjustment, deleteCommissionAdjustment, type CommissionReportEntry, type CommissionAdjustment } from "@/lib/api";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 
@@ -77,6 +81,15 @@ export default function Dashboard() {
   const [entryForm, setEntryForm] = useState({ stylistId: "", clockIn: "", clockOut: "" });
   const [deleteEntryDialogOpen, setDeleteEntryDialogOpen] = useState(false);
   const [deleteEntryId, setDeleteEntryId] = useState<string | null>(null);
+  const [reportingSubTab, setReportingSubTab] = useState<"timeclock" | "commissions" | "sales">("timeclock");
+  const [manualOrderDialogOpen, setManualOrderDialogOpen] = useState(false);
+  const [manualOrderForm, setManualOrderForm] = useState({ stylistId: "", customerName: "", services: "", totalAmount: "", tipAmount: "", notes: "" });
+  const [voidDialogOpen, setVoidDialogOpen] = useState(false);
+  const [voidOrderId, setVoidOrderId] = useState<string | null>(null);
+  const [voidReason, setVoidReason] = useState("");
+  const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
+  const [adjustmentForm, setAdjustmentForm] = useState({ stylistId: "", amount: "", reason: "" });
+  const [showVoidedOrders, setShowVoidedOrders] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: stylists = [] } = useQuery({
@@ -119,13 +132,40 @@ export default function Dashboard() {
       endDate: timeclockEndDate,
       stylistId: timeclockStylistFilter === "all" ? undefined : timeclockStylistFilter 
     }),
-    enabled: activeTab === "timeclock",
+    enabled: activeTab === "reporting" && reportingSubTab === "timeclock",
   });
 
   const { data: timeclockReport = [] } = useQuery({
     queryKey: ["timeclock-report", timeclockStartDate, timeclockEndDate, timeclockStylistFilter],
     queryFn: () => getTimeclockReport(timeclockStartDate, timeclockEndDate, timeclockStylistFilter === "all" ? undefined : timeclockStylistFilter),
-    enabled: activeTab === "timeclock",
+    enabled: activeTab === "reporting" && reportingSubTab === "timeclock",
+  });
+
+  const { data: commissionReport = [] } = useQuery({
+    queryKey: ["commission-report", timeclockStartDate, timeclockEndDate, timeclockStylistFilter],
+    queryFn: () => getCommissionReport(timeclockStartDate, timeclockEndDate, timeclockStylistFilter === "all" ? undefined : timeclockStylistFilter),
+    enabled: activeTab === "reporting" && reportingSubTab === "commissions",
+  });
+
+  const { data: adminOrders = [] } = useQuery({
+    queryKey: ["admin-orders", timeclockStartDate, timeclockEndDate, timeclockStylistFilter, showVoidedOrders],
+    queryFn: () => getAdminOrders({
+      startDate: timeclockStartDate,
+      endDate: timeclockEndDate,
+      stylistId: timeclockStylistFilter === "all" ? undefined : timeclockStylistFilter,
+      includeVoided: showVoidedOrders,
+    }),
+    enabled: activeTab === "reporting" && reportingSubTab === "sales",
+  });
+
+  const { data: commissionAdjustments = [] } = useQuery({
+    queryKey: ["commission-adjustments", timeclockStartDate, timeclockEndDate, timeclockStylistFilter],
+    queryFn: () => getCommissionAdjustments({
+      periodStart: timeclockStartDate,
+      periodEnd: timeclockEndDate,
+      stylistId: timeclockStylistFilter === "all" ? undefined : timeclockStylistFilter,
+    }),
+    enabled: activeTab === "reporting" && reportingSubTab === "commissions",
   });
 
   const copyToClipboard = (text: string, label: string) => {
@@ -294,6 +334,63 @@ export default function Dashboard() {
     onError: (error: any) => toast.error(error.message || "Failed to delete entry"),
   });
 
+  const createManualOrderMutation = useMutation({
+    mutationFn: createManualOrder,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["commission-report"] });
+      toast.success("Manual order created");
+      setManualOrderDialogOpen(false);
+      setManualOrderForm({ stylistId: "", customerName: "", services: "", totalAmount: "", tipAmount: "", notes: "" });
+    },
+    onError: (error: any) => toast.error(error.message || "Failed to create order"),
+  });
+
+  const voidOrderMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => voidOrder(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["commission-report"] });
+      toast.success("Order voided");
+      setVoidDialogOpen(false);
+      setVoidOrderId(null);
+      setVoidReason("");
+    },
+    onError: (error: any) => toast.error(error.message || "Failed to void order"),
+  });
+
+  const restoreOrderMutation = useMutation({
+    mutationFn: restoreOrder,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["commission-report"] });
+      toast.success("Order restored");
+    },
+    onError: (error: any) => toast.error(error.message || "Failed to restore order"),
+  });
+
+  const createAdjustmentMutation = useMutation({
+    mutationFn: createCommissionAdjustment,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["commission-adjustments"] });
+      queryClient.invalidateQueries({ queryKey: ["commission-report"] });
+      toast.success("Adjustment created");
+      setAdjustmentDialogOpen(false);
+      setAdjustmentForm({ stylistId: "", amount: "", reason: "" });
+    },
+    onError: (error: any) => toast.error(error.message || "Failed to create adjustment"),
+  });
+
+  const deleteAdjustmentMutation = useMutation({
+    mutationFn: deleteCommissionAdjustment,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["commission-adjustments"] });
+      queryClient.invalidateQueries({ queryKey: ["commission-report"] });
+      toast.success("Adjustment deleted");
+    },
+    onError: (error: any) => toast.error(error.message || "Failed to delete adjustment"),
+  });
+
   const openEntryDialog = (entry?: TimeEntry) => {
     if (entry) {
       setEditingEntry(entry);
@@ -398,12 +495,12 @@ export default function Dashboard() {
             <Activity className="mr-2 w-4 h-4" /> Activity Logs
           </Button>
           <Button 
-            variant={activeTab === "timeclock" ? "secondary" : "ghost"} 
+            variant={activeTab === "reporting" ? "secondary" : "ghost"} 
             className="w-full justify-start" 
-            onClick={() => setActiveTab("timeclock")}
-            data-testid="tab-timeclock"
+            onClick={() => setActiveTab("reporting")}
+            data-testid="tab-reporting"
           >
-            <Clock className="mr-2 w-4 h-4" /> Timeclock
+            <FileText className="mr-2 w-4 h-4" /> Reporting
           </Button>
           
           <div className="text-xs font-semibold text-muted-foreground mt-6 mb-2 px-4 uppercase tracking-wider">Stylist Portal</div>
@@ -1115,140 +1212,375 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* TIMECLOCK TAB */}
-            {activeTab === "timeclock" && (
+            {/* REPORTING TAB */}
+            {activeTab === "reporting" && (
               <div className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle>Timeclock Management</CardTitle>
-                        <CardDescription>View and manage stylist time entries</CardDescription>
-                      </div>
-                      <Button onClick={() => openEntryDialog()} data-testid="button-add-entry">
-                        <Plus className="w-4 h-4 mr-2" /> Add Entry
-                      </Button>
+                <div className="flex flex-wrap items-center gap-4 mb-4">
+                  <div className="flex gap-1 bg-muted p-1 rounded-lg">
+                    <Button
+                      variant={reportingSubTab === "timeclock" ? "secondary" : "ghost"}
+                      size="sm"
+                      onClick={() => setReportingSubTab("timeclock")}
+                      data-testid="subtab-timeclock"
+                    >
+                      <Clock className="w-4 h-4 mr-2" /> Timeclock
+                    </Button>
+                    <Button
+                      variant={reportingSubTab === "commissions" ? "secondary" : "ghost"}
+                      size="sm"
+                      onClick={() => setReportingSubTab("commissions")}
+                      data-testid="subtab-commissions"
+                    >
+                      <Percent className="w-4 h-4 mr-2" /> Commissions
+                    </Button>
+                    <Button
+                      variant={reportingSubTab === "sales" ? "secondary" : "ghost"}
+                      size="sm"
+                      onClick={() => setReportingSubTab("sales")}
+                      data-testid="subtab-sales"
+                    >
+                      <DollarSign className="w-4 h-4 mr-2" /> Sales
+                    </Button>
+                  </div>
+                  <div className="flex-1" />
+                  <div className="flex flex-wrap gap-4">
+                    <div className="space-y-1">
+                      <Label>Start Date</Label>
+                      <Input
+                        type="date"
+                        value={timeclockStartDate}
+                        onChange={(e) => setTimeclockStartDate(e.target.value)}
+                        data-testid="input-reporting-start"
+                      />
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-4 mb-6">
-                      <div className="space-y-1">
-                        <Label>Start Date</Label>
-                        <Input
-                          type="date"
-                          value={timeclockStartDate}
-                          onChange={(e) => setTimeclockStartDate(e.target.value)}
-                          data-testid="input-timeclock-start"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label>End Date</Label>
-                        <Input
-                          type="date"
-                          value={timeclockEndDate}
-                          onChange={(e) => setTimeclockEndDate(e.target.value)}
-                          data-testid="input-timeclock-end"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label>Stylist</Label>
-                        <Select value={timeclockStylistFilter} onValueChange={setTimeclockStylistFilter}>
-                          <SelectTrigger className="w-[180px]" data-testid="select-timeclock-stylist">
-                            <SelectValue placeholder="All stylists" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All stylists</SelectItem>
-                            {stylists.map(s => (
-                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                    <div className="space-y-1">
+                      <Label>End Date</Label>
+                      <Input
+                        type="date"
+                        value={timeclockEndDate}
+                        onChange={(e) => setTimeclockEndDate(e.target.value)}
+                        data-testid="input-reporting-end"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Stylist</Label>
+                      <Select value={timeclockStylistFilter} onValueChange={setTimeclockStylistFilter}>
+                        <SelectTrigger className="w-[180px]" data-testid="select-reporting-stylist">
+                          <SelectValue placeholder="All stylists" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All stylists</SelectItem>
+                          {stylists.map(s => (
+                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+
+                {reportingSubTab === "timeclock" && (
+                  <>
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle>Timeclock Entries</CardTitle>
+                            <CardDescription>View and manage stylist time entries</CardDescription>
+                          </div>
+                          <Button onClick={() => openEntryDialog()} data-testid="button-add-entry">
+                            <Plus className="w-4 h-4 mr-2" /> Add Entry
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Stylist</TableHead>
+                              <TableHead>Clock In</TableHead>
+                              <TableHead>Clock Out</TableHead>
+                              <TableHead>Duration</TableHead>
+                              <TableHead className="w-[100px]">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {timeEntries.map((entry) => {
+                              const stylist = stylists.find(s => s.id === entry.stylistId);
+                              const clockIn = new Date(entry.clockIn);
+                              const clockOut = entry.clockOut ? new Date(entry.clockOut) : null;
+                              const durationMs = clockOut ? clockOut.getTime() - clockIn.getTime() : Date.now() - clockIn.getTime();
+                              const hours = Math.floor(durationMs / (1000 * 60 * 60));
+                              const mins = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
+                              return (
+                                <TableRow key={entry.id} data-testid={`entry-row-${entry.id}`}>
+                                  <TableCell>{stylist?.name || 'Unknown'}</TableCell>
+                                  <TableCell>{format(clockIn, "PPp")}</TableCell>
+                                  <TableCell>{clockOut ? format(clockOut, "PPp") : <Badge variant="outline">Active</Badge>}</TableCell>
+                                  <TableCell>{hours}h {mins}m</TableCell>
+                                  <TableCell>
+                                    <div className="flex gap-1">
+                                      <Button variant="ghost" size="sm" onClick={() => openEntryDialog(entry)} data-testid={`button-edit-entry-${entry.id}`}>
+                                        <Pencil className="w-4 h-4" />
+                                      </Button>
+                                      <Button variant="ghost" size="sm" onClick={() => { setDeleteEntryId(entry.id); setDeleteEntryDialogOpen(true); }} data-testid={`button-delete-entry-${entry.id}`}>
+                                        <Trash2 className="w-4 h-4 text-destructive" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                            {timeEntries.length === 0 && (
+                              <TableRow>
+                                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                                  No time entries for this period
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Pay Period Report</CardTitle>
+                        <CardDescription>Hours and earnings summary for {timeclockStartDate} to {timeclockEndDate}</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Stylist</TableHead>
+                              <TableHead className="text-right">Total Hours</TableHead>
+                              <TableHead className="text-right">Hourly Rate</TableHead>
+                              <TableHead className="text-right">Total Earnings</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {timeclockReport.map((row) => (
+                              <TableRow key={row.stylistId} data-testid={`report-row-${row.stylistId}`}>
+                                <TableCell className="font-medium">{row.stylistName}</TableCell>
+                                <TableCell className="text-right">{row.totalHours.toFixed(2)}h</TableCell>
+                                <TableCell className="text-right">${parseFloat(row.hourlyRate).toFixed(2)}/hr</TableCell>
+                                <TableCell className="text-right font-bold">${row.totalEarnings.toFixed(2)}</TableCell>
+                              </TableRow>
                             ))}
-                          </SelectContent>
-                        </Select>
+                            {timeclockReport.length === 0 && (
+                              <TableRow>
+                                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                                  No data for this period
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
+
+                {reportingSubTab === "commissions" && (
+                  <>
+                    <Card>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle>Commission Report</CardTitle>
+                            <CardDescription>Sales and commission summary for {timeclockStartDate} to {timeclockEndDate}</CardDescription>
+                          </div>
+                          <Button onClick={() => { setAdjustmentForm({ stylistId: timeclockStylistFilter !== "all" ? timeclockStylistFilter : (stylists[0]?.id || ""), amount: "", reason: "" }); setAdjustmentDialogOpen(true); }} data-testid="button-add-adjustment">
+                            <Plus className="w-4 h-4 mr-2" /> Add Adjustment
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Stylist</TableHead>
+                              <TableHead className="text-right">Orders</TableHead>
+                              <TableHead className="text-right">Gross Sales</TableHead>
+                              <TableHead className="text-right">Voided</TableHead>
+                              <TableHead className="text-right">Net Sales</TableHead>
+                              <TableHead className="text-right">Rate</TableHead>
+                              <TableHead className="text-right">Commission</TableHead>
+                              <TableHead className="text-right">Adjustments</TableHead>
+                              <TableHead className="text-right">Tips</TableHead>
+                              <TableHead className="text-right font-bold">Total</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {commissionReport.map((row) => (
+                              <TableRow key={row.stylistId} data-testid={`commission-row-${row.stylistId}`}>
+                                <TableCell className="font-medium">{row.stylistName}</TableCell>
+                                <TableCell className="text-right">{row.orderCount}</TableCell>
+                                <TableCell className="text-right">${row.totalSales.toFixed(2)}</TableCell>
+                                <TableCell className="text-right text-muted-foreground">${row.voidedSales.toFixed(2)}</TableCell>
+                                <TableCell className="text-right">${row.netSales.toFixed(2)}</TableCell>
+                                <TableCell className="text-right">{row.commissionRate}%</TableCell>
+                                <TableCell className="text-right">${row.baseCommission.toFixed(2)}</TableCell>
+                                <TableCell className="text-right">{row.adjustments >= 0 ? '+' : ''}${row.adjustments.toFixed(2)}</TableCell>
+                                <TableCell className="text-right text-green-600">${row.totalTips.toFixed(2)}</TableCell>
+                                <TableCell className="text-right font-bold text-primary">${row.totalCommission.toFixed(2)}</TableCell>
+                              </TableRow>
+                            ))}
+                            {commissionReport.length === 0 && (
+                              <TableRow>
+                                <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                                  No data for this period
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Commission Adjustments</CardTitle>
+                        <CardDescription>Manual adjustments for the selected period</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Stylist</TableHead>
+                              <TableHead>Reason</TableHead>
+                              <TableHead className="text-right">Amount</TableHead>
+                              <TableHead>Created</TableHead>
+                              <TableHead className="w-[80px]">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {commissionAdjustments.map((adj) => {
+                              const stylist = stylists.find(s => s.id === adj.stylistId);
+                              return (
+                                <TableRow key={adj.id} data-testid={`adjustment-row-${adj.id}`}>
+                                  <TableCell>{stylist?.name || 'Unknown'}</TableCell>
+                                  <TableCell>{adj.reason}</TableCell>
+                                  <TableCell className={`text-right font-medium ${parseFloat(adj.amount) >= 0 ? 'text-green-600' : 'text-destructive'}`}>
+                                    {parseFloat(adj.amount) >= 0 ? '+' : ''}${parseFloat(adj.amount).toFixed(2)}
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground text-xs">{format(new Date(adj.createdAt), "PPp")}</TableCell>
+                                  <TableCell>
+                                    <Button variant="ghost" size="sm" onClick={() => deleteAdjustmentMutation.mutate(adj.id)} data-testid={`button-delete-adjustment-${adj.id}`}>
+                                      <Trash2 className="w-4 h-4 text-destructive" />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                            {commissionAdjustments.length === 0 && (
+                              <TableRow>
+                                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                                  No adjustments for this period
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
+
+                {reportingSubTab === "sales" && (
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle>Sales Management</CardTitle>
+                          <CardDescription>View, void, and manage orders</CardDescription>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="showVoided"
+                              checked={showVoidedOrders}
+                              onCheckedChange={(checked) => setShowVoidedOrders(!!checked)}
+                              data-testid="checkbox-show-voided"
+                            />
+                            <Label htmlFor="showVoided" className="text-sm">Show voided</Label>
+                          </div>
+                          <Button onClick={() => { setManualOrderForm({ stylistId: timeclockStylistFilter !== "all" ? timeclockStylistFilter : (stylists[0]?.id || ""), customerName: "", services: "", totalAmount: "", tipAmount: "", notes: "" }); setManualOrderDialogOpen(true); }} data-testid="button-add-manual-order">
+                            <Plus className="w-4 h-4 mr-2" /> Add Manual Order
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Stylist</TableHead>
-                          <TableHead>Clock In</TableHead>
-                          <TableHead>Clock Out</TableHead>
-                          <TableHead>Duration</TableHead>
-                          <TableHead className="w-[100px]">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {timeEntries.map((entry) => {
-                          const stylist = stylists.find(s => s.id === entry.stylistId);
-                          const clockIn = new Date(entry.clockIn);
-                          const clockOut = entry.clockOut ? new Date(entry.clockOut) : null;
-                          const durationMs = clockOut ? clockOut.getTime() - clockIn.getTime() : Date.now() - clockIn.getTime();
-                          const hours = Math.floor(durationMs / (1000 * 60 * 60));
-                          const mins = Math.floor((durationMs % (1000 * 60 * 60)) / (1000 * 60));
-                          return (
-                            <TableRow key={entry.id} data-testid={`entry-row-${entry.id}`}>
-                              <TableCell>{stylist?.name || 'Unknown'}</TableCell>
-                              <TableCell>{format(clockIn, "PPp")}</TableCell>
-                              <TableCell>{clockOut ? format(clockOut, "PPp") : <Badge variant="outline">Active</Badge>}</TableCell>
-                              <TableCell>{hours}h {mins}m</TableCell>
-                              <TableCell>
-                                <div className="flex gap-1">
-                                  <Button variant="ghost" size="sm" onClick={() => openEntryDialog(entry)} data-testid={`button-edit-entry-${entry.id}`}>
-                                    <Pencil className="w-4 h-4" />
-                                  </Button>
-                                  <Button variant="ghost" size="sm" onClick={() => { setDeleteEntryId(entry.id); setDeleteEntryDialogOpen(true); }} data-testid={`button-delete-entry-${entry.id}`}>
-                                    <Trash2 className="w-4 h-4 text-destructive" />
-                                  </Button>
-                                </div>
+                    </CardHeader>
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>ID</TableHead>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Stylist</TableHead>
+                            <TableHead>Customer</TableHead>
+                            <TableHead>Services</TableHead>
+                            <TableHead className="text-right">Amount</TableHead>
+                            <TableHead className="text-right">Tip</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="w-[100px]">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {adminOrders.map((order) => {
+                            const stylist = stylists.find(s => s.id === order.stylistId);
+                            const isVoided = !!(order as any).voidedAt;
+                            return (
+                              <TableRow key={order.id} className={isVoided ? "opacity-50" : ""} data-testid={`sales-order-row-${order.id}`}>
+                                <TableCell className="font-mono text-xs">{(order as any).isManual ? 'MANUAL' : order.vagaroAppointmentId}</TableCell>
+                                <TableCell className="text-muted-foreground text-xs">{format(new Date(order.createdAt), "PPp")}</TableCell>
+                                <TableCell>{stylist?.name || 'Unknown'}</TableCell>
+                                <TableCell>{order.customerName}</TableCell>
+                                <TableCell>
+                                  <div className="flex flex-wrap gap-1">
+                                    {order.services.slice(0, 2).map((s, i) => (
+                                      <Badge key={i} variant="secondary" className="font-normal text-xs">{s}</Badge>
+                                    ))}
+                                    {order.services.length > 2 && <Badge variant="outline" className="text-xs">+{order.services.length - 2}</Badge>}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-right">${parseFloat(order.totalAmount).toFixed(2)}</TableCell>
+                                <TableCell className="text-right text-green-600">{parseFloat(order.tipAmount) > 0 ? `$${parseFloat(order.tipAmount).toFixed(2)}` : '-'}</TableCell>
+                                <TableCell>
+                                  {isVoided ? (
+                                    <Badge variant="destructive">Voided</Badge>
+                                  ) : (order as any).isManual ? (
+                                    <Badge variant="outline">Manual</Badge>
+                                  ) : (
+                                    <Badge variant="secondary">{order.status}</Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  {isVoided ? (
+                                    <Button variant="ghost" size="sm" onClick={() => restoreOrderMutation.mutate(order.id)} data-testid={`button-restore-order-${order.id}`}>
+                                      <RotateCcw className="w-4 h-4 text-green-600" />
+                                    </Button>
+                                  ) : (
+                                    <Button variant="ghost" size="sm" onClick={() => { setVoidOrderId(order.id); setVoidReason(""); setVoidDialogOpen(true); }} data-testid={`button-void-order-${order.id}`}>
+                                      <Ban className="w-4 h-4 text-destructive" />
+                                    </Button>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                          {adminOrders.length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                                No orders for this period
                               </TableCell>
                             </TableRow>
-                          );
-                        })}
-                        {timeEntries.length === 0 && (
-                          <TableRow>
-                            <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                              No time entries for this period
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Pay Period Report</CardTitle>
-                    <CardDescription>Hours and earnings summary for {timeclockStartDate} to {timeclockEndDate}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Stylist</TableHead>
-                          <TableHead className="text-right">Total Hours</TableHead>
-                          <TableHead className="text-right">Hourly Rate</TableHead>
-                          <TableHead className="text-right">Total Earnings</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {timeclockReport.map((row) => (
-                          <TableRow key={row.stylistId} data-testid={`report-row-${row.stylistId}`}>
-                            <TableCell className="font-medium">{row.stylistName}</TableCell>
-                            <TableCell className="text-right">{row.totalHours.toFixed(2)}h</TableCell>
-                            <TableCell className="text-right">${parseFloat(row.hourlyRate).toFixed(2)}/hr</TableCell>
-                            <TableCell className="text-right font-bold">${row.totalEarnings.toFixed(2)}</TableCell>
-                          </TableRow>
-                        ))}
-                        {timeclockReport.length === 0 && (
-                          <TableRow>
-                            <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                              No data for this period
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             )}
 
@@ -1446,6 +1778,193 @@ export default function Dashboard() {
               data-testid="button-save-tiers"
             >
               {setTiersMutation.isPending ? "Saving..." : "Save Tiers"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={manualOrderDialogOpen} onOpenChange={setManualOrderDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Manual Order</DialogTitle>
+            <DialogDescription>
+              Create a manual sales entry that wasn't captured from Vagaro
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label>Stylist</Label>
+              <Select value={manualOrderForm.stylistId} onValueChange={(v) => setManualOrderForm(f => ({ ...f, stylistId: v }))}>
+                <SelectTrigger data-testid="select-manual-order-stylist">
+                  <SelectValue placeholder="Select stylist" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stylists.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Customer Name</Label>
+              <Input
+                value={manualOrderForm.customerName}
+                onChange={(e) => setManualOrderForm(f => ({ ...f, customerName: e.target.value }))}
+                placeholder="Customer name"
+                data-testid="input-manual-order-customer"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Services (comma separated)</Label>
+              <Input
+                value={manualOrderForm.services}
+                onChange={(e) => setManualOrderForm(f => ({ ...f, services: e.target.value }))}
+                placeholder="Haircut, Color, etc."
+                data-testid="input-manual-order-services"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Total Amount ($)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={manualOrderForm.totalAmount}
+                  onChange={(e) => setManualOrderForm(f => ({ ...f, totalAmount: e.target.value }))}
+                  placeholder="0.00"
+                  data-testid="input-manual-order-amount"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Tip Amount ($)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={manualOrderForm.tipAmount}
+                  onChange={(e) => setManualOrderForm(f => ({ ...f, tipAmount: e.target.value }))}
+                  placeholder="0.00"
+                  data-testid="input-manual-order-tip"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Notes (optional)</Label>
+              <Input
+                value={manualOrderForm.notes}
+                onChange={(e) => setManualOrderForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Additional notes"
+                data-testid="input-manual-order-notes"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setManualOrderDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => createManualOrderMutation.mutate({
+                stylistId: manualOrderForm.stylistId,
+                customerName: manualOrderForm.customerName,
+                services: manualOrderForm.services ? manualOrderForm.services.split(",").map(s => s.trim()) : undefined,
+                totalAmount: manualOrderForm.totalAmount,
+                tipAmount: manualOrderForm.tipAmount || undefined,
+                notes: manualOrderForm.notes || undefined,
+              })}
+              disabled={!manualOrderForm.stylistId || !manualOrderForm.customerName || !manualOrderForm.totalAmount || createManualOrderMutation.isPending}
+              data-testid="button-save-manual-order"
+            >
+              {createManualOrderMutation.isPending ? "Creating..." : "Create Order"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={voidDialogOpen} onOpenChange={setVoidDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Void Order?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will void the order and exclude it from commission calculations. You can restore it later if needed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Label>Reason for voiding</Label>
+            <Input
+              value={voidReason}
+              onChange={(e) => setVoidReason(e.target.value)}
+              placeholder="e.g., Customer refund, Duplicate entry"
+              data-testid="input-void-reason"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => voidOrderId && voidOrderMutation.mutate({ id: voidOrderId, reason: voidReason })}
+              disabled={!voidReason}
+              data-testid="button-confirm-void"
+            >
+              {voidOrderMutation.isPending ? "Voiding..." : "Void Order"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={adjustmentDialogOpen} onOpenChange={setAdjustmentDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Commission Adjustment</DialogTitle>
+            <DialogDescription>
+              Add a manual adjustment to a stylist's commission for the current pay period
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label>Stylist</Label>
+              <Select value={adjustmentForm.stylistId} onValueChange={(v) => setAdjustmentForm(f => ({ ...f, stylistId: v }))}>
+                <SelectTrigger data-testid="select-adjustment-stylist">
+                  <SelectValue placeholder="Select stylist" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stylists.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Amount (use negative for deductions)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={adjustmentForm.amount}
+                onChange={(e) => setAdjustmentForm(f => ({ ...f, amount: e.target.value }))}
+                placeholder="50.00 or -25.00"
+                data-testid="input-adjustment-amount"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Reason</Label>
+              <Input
+                value={adjustmentForm.reason}
+                onChange={(e) => setAdjustmentForm(f => ({ ...f, reason: e.target.value }))}
+                placeholder="e.g., Bonus, Product sales, Correction"
+                data-testid="input-adjustment-reason"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdjustmentDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => createAdjustmentMutation.mutate({
+                stylistId: adjustmentForm.stylistId,
+                periodStart: timeclockStartDate,
+                periodEnd: timeclockEndDate,
+                amount: adjustmentForm.amount,
+                reason: adjustmentForm.reason,
+              })}
+              disabled={!adjustmentForm.stylistId || !adjustmentForm.amount || !adjustmentForm.reason || createAdjustmentMutation.isPending}
+              data-testid="button-save-adjustment"
+            >
+              {createAdjustmentMutation.isPending ? "Creating..." : "Add Adjustment"}
             </Button>
           </DialogFooter>
         </DialogContent>
