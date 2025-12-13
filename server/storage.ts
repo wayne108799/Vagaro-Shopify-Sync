@@ -10,13 +10,36 @@ import {
   type InsertSettings,
   type CommissionTier,
   type InsertCommissionTier,
+  type TimeEntry,
+  type InsertTimeEntry,
   users,
   stylists,
   orders,
   settings,
-  commissionTiers
+  commissionTiers,
+  timeEntries
 } from "@shared/schema";
-import { eq, desc, and, gte, asc } from "drizzle-orm";
+import { eq, desc, and, gte, asc, isNull } from "drizzle-orm";
+
+function getPayPeriod(date: Date) {
+  const day = date.getDate();
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  if (day <= 15) {
+    return {
+      start: `${year}-${String(month + 1).padStart(2, '0')}-01`,
+      end: `${year}-${String(month + 1).padStart(2, '0')}-15`
+    };
+  } else {
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    return {
+      start: `${year}-${String(month + 1).padStart(2, '0')}-16`,
+      end: `${year}-${String(month + 1).padStart(2, '0')}-${lastDay}`
+    };
+  }
+}
+
+export { getPayPeriod };
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -45,6 +68,12 @@ export interface IStorage {
   getCommissionTiers(stylistId: string): Promise<CommissionTier[]>;
   setCommissionTiers(stylistId: string, tiers: Omit<InsertCommissionTier, "stylistId">[]): Promise<CommissionTier[]>;
   getApplicableCommissionRate(stylistId: string, totalSales: number): Promise<number>;
+  
+  getOpenTimeEntry(stylistId: string): Promise<TimeEntry | undefined>;
+  clockIn(stylistId: string): Promise<TimeEntry>;
+  clockOut(stylistId: string): Promise<TimeEntry | undefined>;
+  getTimeEntries(stylistId: string, payPeriodStart: string, payPeriodEnd: string): Promise<TimeEntry[]>;
+  getPayPeriodHours(stylistId: string, payPeriodStart: string, payPeriodEnd: string): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -223,6 +252,72 @@ export class DatabaseStorage implements IStorage {
     }
     
     return applicableRate;
+  }
+
+  async getOpenTimeEntry(stylistId: string): Promise<TimeEntry | undefined> {
+    const result = await db.select().from(timeEntries)
+      .where(and(eq(timeEntries.stylistId, stylistId), isNull(timeEntries.clockOut)))
+      .limit(1);
+    return result[0];
+  }
+
+  async clockIn(stylistId: string): Promise<TimeEntry> {
+    const payPeriod = getPayPeriod(new Date());
+    const result = await db.insert(timeEntries).values({
+      stylistId,
+      payPeriodStart: payPeriod.start,
+      payPeriodEnd: payPeriod.end,
+    }).returning();
+    return result[0];
+  }
+
+  async clockOut(stylistId: string): Promise<TimeEntry | undefined> {
+    const openEntry = await this.getOpenTimeEntry(stylistId);
+    if (!openEntry) return undefined;
+    
+    const result = await db.update(timeEntries)
+      .set({ clockOut: new Date() })
+      .where(eq(timeEntries.id, openEntry.id))
+      .returning();
+    return result[0];
+  }
+
+  async getTimeEntries(stylistId: string, payPeriodStart: string, payPeriodEnd: string): Promise<TimeEntry[]> {
+    return await db.select().from(timeEntries)
+      .where(and(
+        eq(timeEntries.stylistId, stylistId),
+        eq(timeEntries.payPeriodStart, payPeriodStart),
+        eq(timeEntries.payPeriodEnd, payPeriodEnd)
+      ))
+      .orderBy(desc(timeEntries.clockIn));
+  }
+
+  async getPayPeriodHours(stylistId: string, payPeriodStart: string, payPeriodEnd: string): Promise<number> {
+    const allEntries = await db.select().from(timeEntries)
+      .where(eq(timeEntries.stylistId, stylistId))
+      .orderBy(desc(timeEntries.clockIn));
+    
+    let totalMs = 0;
+    const periodStart = new Date(payPeriodStart + "T00:00:00").getTime();
+    const periodEnd = new Date(payPeriodEnd + "T23:59:59.999").getTime();
+    
+    for (const entry of allEntries) {
+      const clockIn = new Date(entry.clockIn).getTime();
+      const clockOut = entry.clockOut ? new Date(entry.clockOut).getTime() : Date.now();
+      
+      if (clockOut < periodStart || clockIn > periodEnd) {
+        continue;
+      }
+      
+      const effectiveStart = Math.max(clockIn, periodStart);
+      const effectiveEnd = Math.min(clockOut, periodEnd);
+      
+      if (effectiveEnd > effectiveStart) {
+        totalMs += effectiveEnd - effectiveStart;
+      }
+    }
+    
+    return Math.round((totalMs / (1000 * 60 * 60)) * 100) / 100;
   }
 }
 

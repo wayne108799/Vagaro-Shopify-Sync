@@ -121,3 +121,34 @@ export async function setCommissionTiers(stylistId: string, tiers: Omit<Commissi
   }
   return res.json();
 }
+
+export interface TimeclockStatus {
+  isClockedIn: boolean;
+  clockedInAt: string | null;
+  payPeriod: { start: string; end: string };
+  hoursThisPeriod: number;
+}
+
+export async function getTimeclockStatus(): Promise<TimeclockStatus> {
+  const res = await fetch("/api/stylist/timeclock/status");
+  if (!res.ok) throw new Error("Failed to fetch timeclock status");
+  return res.json();
+}
+
+export async function clockIn(): Promise<any> {
+  const res = await fetch("/api/stylist/timeclock/clock-in", { method: "POST" });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to clock in");
+  }
+  return res.json();
+}
+
+export async function clockOut(): Promise<any> {
+  const res = await fetch("/api/stylist/timeclock/clock-out", { method: "POST" });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to clock out");
+  }
+  return res.json();
+}

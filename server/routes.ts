@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage, getPayPeriod } from "./storage";
 import { ShopifyClient } from "./shopify";
 import { VagaroClient } from "./vagaro";
 import { insertStylistSchema, insertOrderSchema, insertSettingsSchema, type Stylist } from "@shared/schema";
@@ -547,6 +547,61 @@ export async function registerRoutes(
       }
       const orders = await storage.getOrders({ stylistId: req.session.stylistId });
       res.json(orders);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Timeclock - clock in
+  app.post("/api/stylist/timeclock/clock-in", async (req, res) => {
+    try {
+      if (!req.session.stylistId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const existingEntry = await storage.getOpenTimeEntry(req.session.stylistId);
+      if (existingEntry) {
+        return res.status(400).json({ error: "Already clocked in" });
+      }
+      const entry = await storage.clockIn(req.session.stylistId);
+      res.json(entry);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Timeclock - clock out
+  app.post("/api/stylist/timeclock/clock-out", async (req, res) => {
+    try {
+      if (!req.session.stylistId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const entry = await storage.clockOut(req.session.stylistId);
+      if (!entry) {
+        return res.status(400).json({ error: "Not clocked in" });
+      }
+      res.json(entry);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Timeclock - get status (open entry + current period hours)
+  app.get("/api/stylist/timeclock/status", async (req, res) => {
+    try {
+      if (!req.session.stylistId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const payPeriod = getPayPeriod(new Date());
+      const [openEntry, hours] = await Promise.all([
+        storage.getOpenTimeEntry(req.session.stylistId),
+        storage.getPayPeriodHours(req.session.stylistId, payPeriod.start, payPeriod.end),
+      ]);
+      res.json({
+        isClockedIn: !!openEntry,
+        clockedInAt: openEntry?.clockIn || null,
+        payPeriod,
+        hoursThisPeriod: hours,
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

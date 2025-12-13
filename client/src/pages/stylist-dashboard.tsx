@@ -3,8 +3,9 @@ import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
-import { DollarSign, TrendingUp, Scissors, LogOut } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { DollarSign, TrendingUp, Scissors, LogOut, Clock, Play, Square } from "lucide-react";
+import { getTimeclockStatus, clockIn, clockOut, type TimeclockStatus } from "@/lib/api";
 
 interface StylistMe {
   id: string;
@@ -44,6 +45,7 @@ interface Order {
 export default function StylistDashboard() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: me, isLoading: meLoading, error: meError } = useQuery<StylistMe>({
     queryKey: ["stylist-me"],
@@ -75,6 +77,35 @@ export default function StylistDashboard() {
     },
     enabled: !!me,
     refetchInterval: 30000,
+  });
+
+  const { data: timeclockStatus } = useQuery<TimeclockStatus>({
+    queryKey: ["timeclock-status"],
+    queryFn: getTimeclockStatus,
+    enabled: !!me,
+    refetchInterval: 60000,
+  });
+
+  const clockInMutation = useMutation({
+    mutationFn: clockIn,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["timeclock-status"] });
+      toast({ title: "Clocked In", description: "You're now on the clock!" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const clockOutMutation = useMutation({
+    mutationFn: clockOut,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["timeclock-status"] });
+      toast({ title: "Clocked Out", description: "Great work today!" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
   });
 
   useEffect(() => {
@@ -122,6 +153,64 @@ export default function StylistDashboard() {
             Logout
           </Button>
         </div>
+
+        <Card data-testid="card-timeclock">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Clock className="w-5 h-5 text-blue-600" />
+              Time Clock
+            </CardTitle>
+            <CardDescription>
+              Pay period: {timeclockStatus?.payPeriod?.start} to {timeclockStatus?.payPeriod?.end}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                {timeclockStatus?.isClockedIn ? (
+                  <div>
+                    <p className="text-sm text-gray-500">Clocked in since</p>
+                    <p className="text-lg font-medium text-green-600" data-testid="text-clocked-in-time">
+                      {timeclockStatus?.clockedInAt
+                        ? new Date(timeclockStatus.clockedInAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                        : "—"}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-gray-500" data-testid="text-not-clocked-in">Not clocked in</p>
+                )}
+                <p className="text-sm text-gray-500 mt-2">
+                  Hours this period: <span className="font-medium" data-testid="text-period-hours">{timeclockStatus?.hoursThisPeriod?.toFixed(2) || "0.00"}</span>
+                </p>
+              </div>
+              <div>
+                {timeclockStatus?.isClockedIn ? (
+                  <Button
+                    onClick={() => clockOutMutation.mutate()}
+                    disabled={clockOutMutation.isPending}
+                    variant="destructive"
+                    size="lg"
+                    data-testid="button-clock-out"
+                  >
+                    <Square className="w-4 h-4 mr-2" />
+                    {clockOutMutation.isPending ? "..." : "Clock Out"}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => clockInMutation.mutate()}
+                    disabled={clockInMutation.isPending}
+                    size="lg"
+                    className="bg-green-600 hover:bg-green-700"
+                    data-testid="button-clock-in"
+                  >
+                    <Play className="w-4 h-4 mr-2" />
+                    {clockInMutation.isPending ? "..." : "Clock In"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card data-testid="card-today-stats">
