@@ -81,7 +81,7 @@ export class VagaroClient {
     const body = {
       clientId: this.clientId,
       clientSecretKey: this.clientSecret,
-      scope: "locations:read employees:read",
+      scope: "read access",
     };
     
     console.log(`[Vagaro] Requesting access token from: ${url}`);
@@ -250,17 +250,23 @@ export class VagaroClient {
 
   async getEmployeeById(serviceProviderId: string): Promise<VagaroEmployee | null> {
     const token = await this.getAccessToken();
+    const businessId = await this.getBusinessId();
     
-    // Use encId (Merchant ID) for /merchants endpoints, not businessId
-    const url = `${this.baseUrl}/merchants/${this.encId}/employees/${serviceProviderId}`;
-    console.log(`[Vagaro] Fetching employee from: ${url}`);
+    // POST to /employees with businessId and serviceProviderId in body
+    const url = `${this.baseUrl}/employees`;
+    console.log(`[Vagaro] Fetching employee from: ${url} with serviceProviderId: ${serviceProviderId}`);
 
     const response = await fetch(url, {
-      method: "GET",
+      method: "POST",
       headers: {
         "accept": "application/json",
+        "content-type": "application/json",
         "accessToken": token,
       },
+      body: JSON.stringify({
+        businessId: businessId,
+        serviceProviderId: serviceProviderId,
+      }),
     });
 
     const rawText = await response.text();
@@ -281,17 +287,23 @@ export class VagaroClient {
 
   async getCustomerById(customerId: string): Promise<VagaroCustomer | null> {
     const token = await this.getAccessToken();
+    const businessId = await this.getBusinessId();
     
-    // Use encId (Merchant ID) for /merchants endpoints, not businessId
-    const url = `${this.baseUrl}/merchants/${this.encId}/customers/${customerId}`;
-    console.log(`[Vagaro] Fetching customer from: ${url}`);
+    // POST to /customers with businessId and customerId in body
+    const url = `${this.baseUrl}/customers`;
+    console.log(`[Vagaro] Fetching customer from: ${url} with customerId: ${customerId}`);
 
     const response = await fetch(url, {
-      method: "GET",
+      method: "POST",
       headers: {
         "accept": "application/json",
+        "content-type": "application/json",
         "accessToken": token,
       },
+      body: JSON.stringify({
+        businessId: businessId,
+        customerId: customerId,
+      }),
     });
 
     const rawText = await response.text();
