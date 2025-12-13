@@ -170,8 +170,12 @@ export async function registerRoutes(
   // Vagaro webhook endpoint
   app.post("/api/webhooks/vagaro", async (req, res) => {
     try {
+      console.log("[Vagaro Webhook] Received payload:", JSON.stringify(req.body, null, 2));
+      console.log("[Vagaro Webhook] Headers:", JSON.stringify(req.headers, null, 2));
+      
       const settings = await storage.getSettings();
       if (!settings?.syncOnBooked) {
+        console.log("[Vagaro Webhook] Sync disabled in settings");
         return res.json({ message: "Sync disabled" });
       }
 
