@@ -64,6 +64,41 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/stylists/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteStylist(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Stylist not found" });
+      }
+      res.json({ message: "Stylist deleted successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Commission tiers endpoints
+  app.get("/api/stylists/:id/commission-tiers", async (req, res) => {
+    try {
+      const tiers = await storage.getCommissionTiers(req.params.id);
+      res.json(tiers);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.put("/api/stylists/:id/commission-tiers", async (req, res) => {
+    try {
+      const { tiers } = req.body;
+      if (!Array.isArray(tiers)) {
+        return res.status(400).json({ error: "Tiers must be an array" });
+      }
+      const result = await storage.setCommissionTiers(req.params.id, tiers);
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Orders endpoints
   app.get("/api/orders", async (req, res) => {
     try {
@@ -289,8 +324,13 @@ export async function registerRoutes(
         return res.json({ message: "Order already synced", orderId: existing.id });
       }
 
-      // Calculate commission
-      const commissionAmount = (totalAmount * stylist.commissionRate) / 100;
+      // Calculate total sales for this stylist to determine tier
+      const stylistOrders = await storage.getOrders({ stylistId: stylist.id });
+      const totalSales = stylistOrders.reduce((sum, o) => sum + parseFloat(o.totalAmount), 0);
+      
+      // Get applicable commission rate based on tiers (or fall back to base rate)
+      const commissionRate = await storage.getApplicableCommissionRate(stylist.id, totalSales);
+      const commissionAmount = (totalAmount * commissionRate) / 100;
 
       // Create draft order in Shopify
       let shopifyDraftOrderId: string | undefined;

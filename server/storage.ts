@@ -8,12 +8,15 @@ import {
   type InsertOrder,
   type Settings,
   type InsertSettings,
+  type CommissionTier,
+  type InsertCommissionTier,
   users,
   stylists,
   orders,
-  settings
+  settings,
+  commissionTiers
 } from "@shared/schema";
-import { eq, desc, and, gte } from "drizzle-orm";
+import { eq, desc, and, gte, asc } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -28,6 +31,7 @@ export interface IStorage {
   setStylistPin(id: string, pinHash: string): Promise<Stylist | undefined>;
   upsertStylistByVagaroId(vagaroId: string, data: InsertStylist): Promise<Stylist>;
   deleteStylistsNotInList(vagaroIds: string[]): Promise<void>;
+  deleteStylist(id: string): Promise<boolean>;
   
   getOrders(filters?: { stylistId?: string; status?: string; fromDate?: Date }): Promise<Order[]>;
   getOrder(id: string): Promise<Order | undefined>;
@@ -37,6 +41,10 @@ export interface IStorage {
   
   getSettings(): Promise<Settings | undefined>;
   upsertSettings(settingsData: Partial<InsertSettings>): Promise<Settings>;
+  
+  getCommissionTiers(stylistId: string): Promise<CommissionTier[]>;
+  setCommissionTiers(stylistId: string, tiers: Omit<InsertCommissionTier, "stylistId">[]): Promise<CommissionTier[]>;
+  getApplicableCommissionRate(stylistId: string, totalSales: number): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -170,6 +178,51 @@ export class DatabaseStorage implements IStorage {
       const result = await db.insert(settings).values(settingsData as InsertSettings).returning();
       return result[0];
     }
+  }
+
+  async deleteStylist(id: string): Promise<boolean> {
+    const result = await db.delete(stylists).where(eq(stylists.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getCommissionTiers(stylistId: string): Promise<CommissionTier[]> {
+    return await db.select().from(commissionTiers)
+      .where(eq(commissionTiers.stylistId, stylistId))
+      .orderBy(asc(commissionTiers.tierLevel));
+  }
+
+  async setCommissionTiers(stylistId: string, tiers: Omit<InsertCommissionTier, "stylistId">[]): Promise<CommissionTier[]> {
+    await db.delete(commissionTiers).where(eq(commissionTiers.stylistId, stylistId));
+    
+    if (tiers.length === 0) {
+      return [];
+    }
+    
+    const tiersWithStylistId = tiers.map(tier => ({
+      ...tier,
+      stylistId,
+    }));
+    
+    const result = await db.insert(commissionTiers).values(tiersWithStylistId).returning();
+    return result;
+  }
+
+  async getApplicableCommissionRate(stylistId: string, totalSales: number): Promise<number> {
+    const tiers = await this.getCommissionTiers(stylistId);
+    
+    if (tiers.length === 0) {
+      const stylist = await this.getStylist(stylistId);
+      return stylist?.commissionRate ?? 40;
+    }
+    
+    let applicableRate = tiers[0]?.commissionRate ?? 40;
+    for (const tier of tiers) {
+      if (totalSales >= parseFloat(tier.salesThreshold)) {
+        applicableRate = tier.commissionRate;
+      }
+    }
+    
+    return applicableRate;
   }
 }
 

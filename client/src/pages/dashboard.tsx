@@ -14,6 +14,8 @@ import {
   Copy,
   Link,
   Key,
+  Trash2,
+  Layers,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,7 +30,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls, syncStylistsFromVagaro, setStylistPin } from "@/lib/api";
+import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls, syncStylistsFromVagaro, setStylistPin, deleteStylist, getCommissionTiers, setCommissionTiers, type CommissionTier } from "@/lib/api";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 
 export default function Dashboard() {
@@ -39,6 +42,13 @@ export default function Dashboard() {
   const [pinStylistId, setPinStylistId] = useState<string | null>(null);
   const [pinStylistName, setPinStylistName] = useState<string>("");
   const [pinValue, setPinValue] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteStylistId, setDeleteStylistId] = useState<string | null>(null);
+  const [deleteStylistName, setDeleteStylistName] = useState<string>("");
+  const [tiersDialogOpen, setTiersDialogOpen] = useState(false);
+  const [tiersStylistId, setTiersStylistId] = useState<string | null>(null);
+  const [tiersStylistName, setTiersStylistName] = useState<string>("");
+  const [editingTiers, setEditingTiers] = useState<Omit<CommissionTier, "id" | "stylistId">[]>([]);
   const queryClient = useQueryClient();
 
   const { data: stylists = [] } = useQuery({
@@ -131,6 +141,77 @@ export default function Dashboard() {
     setPinStylistName(stylistName);
     setPinValue("");
     setPinDialogOpen(true);
+  };
+
+  const deleteStylistMutation = useMutation({
+    mutationFn: (id: string) => deleteStylist(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stylists"] });
+      toast.success("Stylist removed successfully");
+      setDeleteDialogOpen(false);
+      setDeleteStylistId(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to remove stylist");
+    },
+  });
+
+  const openDeleteDialog = (stylistId: string, stylistName: string) => {
+    setDeleteStylistId(stylistId);
+    setDeleteStylistName(stylistName);
+    setDeleteDialogOpen(true);
+  };
+
+  const setTiersMutation = useMutation({
+    mutationFn: ({ id, tiers }: { id: string; tiers: Omit<CommissionTier, "id" | "stylistId">[] }) => 
+      setCommissionTiers(id, tiers),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stylists"] });
+      toast.success("Commission tiers saved");
+      setTiersDialogOpen(false);
+      setTiersStylistId(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to save commission tiers");
+    },
+  });
+
+  const openTiersDialog = async (stylistId: string, stylistName: string) => {
+    setTiersStylistId(stylistId);
+    setTiersStylistName(stylistName);
+    try {
+      const existingTiers = await getCommissionTiers(stylistId);
+      if (existingTiers.length > 0) {
+        setEditingTiers(existingTiers.map(t => ({
+          tierLevel: t.tierLevel,
+          salesThreshold: t.salesThreshold,
+          commissionRate: t.commissionRate,
+        })));
+      } else {
+        setEditingTiers([
+          { tierLevel: 1, salesThreshold: "0", commissionRate: 35 },
+          { tierLevel: 2, salesThreshold: "5000", commissionRate: 40 },
+          { tierLevel: 3, salesThreshold: "10000", commissionRate: 45 },
+          { tierLevel: 4, salesThreshold: "20000", commissionRate: 50 },
+          { tierLevel: 5, salesThreshold: "30000", commissionRate: 55 },
+        ]);
+      }
+    } catch {
+      setEditingTiers([
+        { tierLevel: 1, salesThreshold: "0", commissionRate: 35 },
+        { tierLevel: 2, salesThreshold: "5000", commissionRate: 40 },
+        { tierLevel: 3, salesThreshold: "10000", commissionRate: 45 },
+        { tierLevel: 4, salesThreshold: "20000", commissionRate: 50 },
+        { tierLevel: 5, salesThreshold: "30000", commissionRate: 55 },
+      ]);
+    }
+    setTiersDialogOpen(true);
+  };
+
+  const updateTier = (index: number, field: "salesThreshold" | "commissionRate", value: string) => {
+    setEditingTiers(prev => prev.map((tier, i) => 
+      i === index ? { ...tier, [field]: field === "commissionRate" ? parseInt(value) || 0 : value } : tier
+    ));
   };
 
   useEffect(() => {
@@ -398,45 +479,67 @@ export default function Dashboard() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>Stylist Filtering</CardTitle>
-                    <CardDescription>Only sync appointments for specific staff members</CardDescription>
+                    <CardTitle>Stylist Management</CardTitle>
+                    <CardDescription>Manage staff members, PINs, and commission rates</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
                       {stylists.map((stylist) => (
-                        <div key={stylist.id} className="flex items-center justify-between space-x-3 space-y-0">
-                          <div className="flex items-start space-x-3">
-                            <Checkbox 
-                              id={stylist.id} 
-                              checked={stylist.enabled}
-                              onCheckedChange={(checked) => 
-                                updateStylistMutation.mutate({ id: stylist.id, data: { enabled: checked as boolean } })
-                              }
-                              data-testid={`checkbox-stylist-${stylist.id}`}
-                            />
-                            <div className="grid gap-1.5 leading-none">
-                              <label
-                                htmlFor={stylist.id}
-                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        <div key={stylist.id} className="flex flex-col gap-3 p-4 border rounded-lg" data-testid={`stylist-row-${stylist.id}`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-start space-x-3">
+                              <Checkbox 
+                                id={stylist.id} 
+                                checked={stylist.enabled}
+                                onCheckedChange={(checked) => 
+                                  updateStylistMutation.mutate({ id: stylist.id, data: { enabled: checked as boolean } })
+                                }
+                                data-testid={`checkbox-stylist-${stylist.id}`}
+                              />
+                              <div className="grid gap-1.5 leading-none">
+                                <label
+                                  htmlFor={stylist.id}
+                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                >
+                                  {stylist.name}
+                                </label>
+                                <p className="text-xs text-muted-foreground">
+                                  {stylist.role}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openPinDialog(stylist.id, stylist.name)}
+                                data-testid={`button-set-pin-${stylist.id}`}
                               >
-                                {stylist.name}
-                              </label>
-                              <p className="text-xs text-muted-foreground">
-                                {stylist.role}
-                              </p>
+                                <Key className="w-3 h-3 mr-1" />
+                                {stylist.pinHash ? "Change PIN" : "Set PIN"}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openTiersDialog(stylist.id, stylist.name)}
+                                data-testid={`button-set-tiers-${stylist.id}`}
+                              >
+                                <Layers className="w-3 h-3 mr-1" />
+                                Tiers
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => openDeleteDialog(stylist.id, stylist.name)}
+                                data-testid={`button-delete-${stylist.id}`}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openPinDialog(stylist.id, stylist.name)}
-                              data-testid={`button-set-pin-${stylist.id}`}
-                            >
-                              <Key className="w-3 h-3 mr-1" />
-                              {stylist.pinHash ? "Change PIN" : "Set PIN"}
-                            </Button>
-                            <span className="text-xs text-muted-foreground">Commission:</span>
+                          <div className="flex items-center gap-2 ml-7">
+                            <span className="text-xs text-muted-foreground">Base Commission:</span>
                             <Input 
                               className="w-16 h-8" 
                               value={stylist.commissionRate} 
@@ -450,9 +553,15 @@ export default function Dashboard() {
                               data-testid={`input-commission-${stylist.id}`}
                             />
                             <span className="text-xs text-muted-foreground">%</span>
+                            <span className="text-xs text-muted-foreground ml-2">(Used when no tiers are set)</span>
                           </div>
                         </div>
                       ))}
+                      {stylists.length === 0 && (
+                        <p className="text-sm text-muted-foreground text-center py-4">
+                          No stylists found. Sync from Vagaro or add manually.
+                        </p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -915,6 +1024,93 @@ export default function Dashboard() {
               data-testid="button-save-pin"
             >
               {setPinMutation.isPending ? "Saving..." : "Save PIN"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {deleteStylistName}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove this stylist from the system. Their order history will be preserved but they will no longer appear in the stylist list.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteStylistId && deleteStylistMutation.mutate(deleteStylistId)}
+              data-testid="button-confirm-delete"
+            >
+              {deleteStylistMutation.isPending ? "Removing..." : "Remove Stylist"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={tiersDialogOpen} onOpenChange={setTiersDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Commission Tiers for {tiersStylistName}</DialogTitle>
+            <DialogDescription>
+              Set up to 5 commission tiers based on sales thresholds. When total sales reach each threshold, the stylist earns the corresponding commission rate.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-20">Tier</TableHead>
+                  <TableHead>Sales Threshold ($)</TableHead>
+                  <TableHead>Commission Rate (%)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {editingTiers.map((tier, index) => (
+                  <TableRow key={index}>
+                    <TableCell className="font-medium">Level {tier.tierLevel}</TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        value={tier.salesThreshold}
+                        onChange={(e) => updateTier(index, "salesThreshold", e.target.value)}
+                        placeholder="0"
+                        data-testid={`input-tier-threshold-${index}`}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          value={tier.commissionRate}
+                          onChange={(e) => updateTier(index, "commissionRate", e.target.value)}
+                          placeholder="40"
+                          className="w-20"
+                          data-testid={`input-tier-rate-${index}`}
+                        />
+                        <span className="text-muted-foreground">%</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <p className="text-xs text-muted-foreground">
+              Example: If Tier 2 threshold is $5,000 and rate is 45%, the stylist earns 45% commission once their total sales reach $5,000.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTiersDialogOpen(false)} data-testid="button-cancel-tiers">
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => tiersStylistId && setTiersMutation.mutate({ id: tiersStylistId, tiers: editingTiers })}
+              disabled={setTiersMutation.isPending}
+              data-testid="button-save-tiers"
+            >
+              {setTiersMutation.isPending ? "Saving..." : "Save Tiers"}
             </Button>
           </DialogFooter>
         </DialogContent>

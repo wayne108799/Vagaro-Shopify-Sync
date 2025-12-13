@@ -83,3 +83,41 @@ export async function setStylistPin(stylistId: string, pin: string): Promise<{ m
   }
   return res.json();
 }
+
+export async function deleteStylist(stylistId: string): Promise<{ message: string }> {
+  const res = await fetch(`/api/stylists/${stylistId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to delete stylist");
+  }
+  return res.json();
+}
+
+export interface CommissionTier {
+  id?: string;
+  stylistId?: string;
+  tierLevel: number;
+  salesThreshold: string;
+  commissionRate: number;
+}
+
+export async function getCommissionTiers(stylistId: string): Promise<CommissionTier[]> {
+  const res = await fetch(`/api/stylists/${stylistId}/commission-tiers`);
+  if (!res.ok) throw new Error("Failed to fetch commission tiers");
+  return res.json();
+}
+
+export async function setCommissionTiers(stylistId: string, tiers: Omit<CommissionTier, "id" | "stylistId">[]): Promise<CommissionTier[]> {
+  const res = await fetch(`/api/stylists/${stylistId}/commission-tiers`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tiers }),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to set commission tiers");
+  }
+  return res.json();
+}

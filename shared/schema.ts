@@ -72,3 +72,15 @@ export const settings = pgTable("settings", {
 export const insertSettingsSchema = createInsertSchema(settings).omit({ id: true });
 export type InsertSettings = z.infer<typeof insertSettingsSchema>;
 export type Settings = typeof settings.$inferSelect;
+
+export const commissionTiers = pgTable("commission_tiers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  stylistId: varchar("stylist_id").notNull().references(() => stylists.id, { onDelete: "cascade" }),
+  tierLevel: integer("tier_level").notNull(),
+  salesThreshold: decimal("sales_threshold", { precision: 10, scale: 2 }).notNull(),
+  commissionRate: integer("commission_rate").notNull(),
+});
+
+export const insertCommissionTierSchema = createInsertSchema(commissionTiers).omit({ id: true });
+export type InsertCommissionTier = z.infer<typeof insertCommissionTierSchema>;
+export type CommissionTier = typeof commissionTiers.$inferSelect;
