@@ -217,12 +217,16 @@ export async function registerRoutes(
           if (serviceProviderId) {
             console.log(`[Vagaro Webhook] Fetching employee details for ${serviceProviderId}`);
             const employee = await vagaroClient.getEmployeeById(serviceProviderId);
+            console.log(`[Vagaro Webhook] Employee API response:`, JSON.stringify(employee));
             if (employee) {
-              const firstName = employee.employeeFirstName || employee.firstName || '';
-              const lastName = employee.employeeLastName || employee.lastName || '';
-              employeeName = `${firstName} ${lastName}`.trim() || employeeName;
-              employeeRole = employee.jobTitle || employeeRole;
-              console.log(`[Vagaro Webhook] Found employee: ${employeeName}`);
+              const firstName = (employee as any).employeeFirstName || (employee as any).firstName || '';
+              const lastName = (employee as any).employeeLastName || (employee as any).lastName || '';
+              console.log(`[Vagaro Webhook] Extracted names: firstName="${firstName}", lastName="${lastName}"`);
+              if (firstName || lastName) {
+                employeeName = `${firstName} ${lastName}`.trim();
+              }
+              employeeRole = (employee as any).jobTitle || employeeRole;
+              console.log(`[Vagaro Webhook] Final employee name: ${employeeName}`);
             }
           }
           
@@ -230,12 +234,16 @@ export async function registerRoutes(
           if (customerId) {
             console.log(`[Vagaro Webhook] Fetching customer details for ${customerId}`);
             const customer = await vagaroClient.getCustomerById(customerId);
+            console.log(`[Vagaro Webhook] Customer API response:`, JSON.stringify(customer));
             if (customer) {
-              const firstName = customer.customerFirstName || customer.firstName || '';
-              const lastName = customer.customerLastName || customer.lastName || '';
-              customerName = `${firstName} ${lastName}`.trim() || customerName;
-              customerEmail = customer.email;
-              console.log(`[Vagaro Webhook] Found customer: ${customerName}, email: ${customerEmail}`);
+              const firstName = (customer as any).customerFirstName || (customer as any).firstName || '';
+              const lastName = (customer as any).customerLastName || (customer as any).lastName || '';
+              console.log(`[Vagaro Webhook] Extracted customer names: firstName="${firstName}", lastName="${lastName}"`);
+              if (firstName || lastName) {
+                customerName = `${firstName} ${lastName}`.trim();
+              }
+              customerEmail = (customer as any).email;
+              console.log(`[Vagaro Webhook] Final customer name: ${customerName}, email: ${customerEmail}`);
             }
           }
         }
