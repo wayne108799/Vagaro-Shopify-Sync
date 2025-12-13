@@ -699,5 +699,166 @@ export async function registerRoutes(
     }
   });
 
+  // Admin Manual Orders - create a manual sale
+  app.post("/api/admin/orders", async (req, res) => {
+    try {
+      const { stylistId, customerName, services, totalAmount, tipAmount, notes } = req.body;
+      if (!stylistId || !customerName || !totalAmount) {
+        return res.status(400).json({ error: "stylistId, customerName, and totalAmount are required" });
+      }
+      
+      const stylistOrders = await storage.getOrders({ stylistId });
+      const totalSales = stylistOrders.reduce((sum, o) => sum + parseFloat(o.totalAmount), 0);
+      const commissionRate = await storage.getApplicableCommissionRate(stylistId, totalSales);
+      const commissionAmount = (parseFloat(totalAmount) * commissionRate) / 100;
+      
+      const order = await storage.createOrder({
+        stylistId,
+        customerName,
+        customerEmail: null,
+        services: services || ["Manual Sale"],
+        totalAmount: parseFloat(totalAmount).toFixed(2),
+        tipAmount: parseFloat(tipAmount || "0").toFixed(2),
+        commissionAmount: commissionAmount.toFixed(2),
+        status: "paid",
+        isManual: true,
+        notes,
+        paidAt: new Date(),
+      });
+      res.json(order);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin Orders - void an order
+  app.post("/api/admin/orders/:id/void", async (req, res) => {
+    try {
+      const { reason } = req.body;
+      if (!reason) {
+        return res.status(400).json({ error: "Reason is required" });
+      }
+      const order = await storage.voidOrder(req.params.id, reason);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      res.json(order);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin Orders - restore a voided order
+  app.post("/api/admin/orders/:id/restore", async (req, res) => {
+    try {
+      const order = await storage.restoreOrder(req.params.id);
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      res.json(order);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin Orders - get orders for period
+  app.get("/api/admin/orders", async (req, res) => {
+    try {
+      const { startDate, endDate, stylistId, includeVoided } = req.query;
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: "startDate and endDate are required" });
+      }
+      const orders = await storage.getOrdersForPeriod(
+        startDate as string,
+        endDate as string,
+        stylistId as string | undefined,
+        includeVoided === "true"
+      );
+      res.json(orders);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin Commission Adjustments - list
+  app.get("/api/admin/commission-adjustments", async (req, res) => {
+    try {
+      const filters: { stylistId?: string; periodStart?: string; periodEnd?: string } = {};
+      if (req.query.stylistId) filters.stylistId = req.query.stylistId as string;
+      if (req.query.periodStart) filters.periodStart = req.query.periodStart as string;
+      if (req.query.periodEnd) filters.periodEnd = req.query.periodEnd as string;
+      
+      const adjustments = await storage.getCommissionAdjustments(filters);
+      res.json(adjustments);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin Commission Adjustments - create
+  app.post("/api/admin/commission-adjustments", async (req, res) => {
+    try {
+      const { stylistId, periodStart, periodEnd, amount, reason, orderId } = req.body;
+      if (!stylistId || !periodStart || !periodEnd || amount === undefined || !reason) {
+        return res.status(400).json({ error: "stylistId, periodStart, periodEnd, amount, and reason are required" });
+      }
+      const adjustment = await storage.createCommissionAdjustment({
+        stylistId,
+        periodStart,
+        periodEnd,
+        amount: parseFloat(amount).toFixed(2),
+        reason,
+        orderId: orderId || null,
+      });
+      res.json(adjustment);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin Commission Adjustments - update
+  app.patch("/api/admin/commission-adjustments/:id", async (req, res) => {
+    try {
+      const adjustment = await storage.updateCommissionAdjustment(req.params.id, req.body);
+      if (!adjustment) {
+        return res.status(404).json({ error: "Adjustment not found" });
+      }
+      res.json(adjustment);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin Commission Adjustments - delete
+  app.delete("/api/admin/commission-adjustments/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteCommissionAdjustment(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ error: "Adjustment not found" });
+      }
+      res.json({ message: "Adjustment deleted" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin Commission Report
+  app.get("/api/admin/commission-report", async (req, res) => {
+    try {
+      const { startDate, endDate, stylistId } = req.query;
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: "startDate and endDate are required" });
+      }
+      const report = await storage.getCommissionReport(
+        startDate as string,
+        endDate as string,
+        stylistId as string | undefined
+      );
+      res.json(report);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   return httpServer;
 }
