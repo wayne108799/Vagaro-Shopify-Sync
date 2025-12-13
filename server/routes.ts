@@ -324,12 +324,13 @@ export async function registerRoutes(
         return res.json({ message: "Order already synced", orderId: existing.id });
       }
 
-      // Calculate total sales for this stylist to determine tier
-      const stylistOrders = await storage.getOrders({ stylistId: stylist.id });
-      const totalSales = stylistOrders.reduce((sum, o) => sum + parseFloat(o.totalAmount), 0);
+      // Calculate pay period sales for this stylist to determine tier (exclude voided orders)
+      const payPeriod = getPayPeriod(new Date());
+      const periodOrders = await storage.getOrdersForPeriod(payPeriod.start, payPeriod.end, stylist.id, false);
+      const periodSales = periodOrders.reduce((sum, o) => sum + parseFloat(o.totalAmount), 0);
       
       // Get applicable commission rate based on tiers (or fall back to base rate)
-      const commissionRate = await storage.getApplicableCommissionRate(stylist.id, totalSales);
+      const commissionRate = await storage.getApplicableCommissionRate(stylist.id, periodSales);
       const commissionAmount = (totalAmount * commissionRate) / 100;
 
       // Create draft order in Shopify
