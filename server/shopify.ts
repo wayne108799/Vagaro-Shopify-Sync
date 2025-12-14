@@ -4,6 +4,7 @@ export interface ShopifyDraftOrderInput {
   customerEmail?: string;
   customerName: string;
   lineItems: Array<{
+    variantId?: string;
     title: string;
     price: string;
     quantity: number;
@@ -245,16 +246,26 @@ export class ShopifyClient {
       }
     `;
 
+    const lineItems = input.lineItems.map(item => {
+      if (item.variantId) {
+        return {
+          variantId: item.variantId,
+          quantity: item.quantity,
+        };
+      }
+      return {
+        title: item.title,
+        originalUnitPrice: item.price,
+        quantity: item.quantity,
+      };
+    });
+
     const variables = {
       input: {
         email: input.customerEmail,
         note: input.note,
         tags: input.tags || [],
-        lineItems: input.lineItems.map(item => ({
-          title: item.title,
-          originalUnitPrice: item.price,
-          quantity: item.quantity,
-        })),
+        lineItems,
       },
     };
 
@@ -264,8 +275,12 @@ export class ShopifyClient {
       throw new Error(`Shopify draft order creation failed: ${result.data.draftOrderCreate.userErrors[0].message}`);
     }
 
+    // Extract numeric ID from GraphQL global ID for consistency
+    const gid = result.data.draftOrderCreate.draftOrder.id;
+    const numericId = gid.split('/').pop() || gid;
+
     return {
-      id: result.data.draftOrderCreate.draftOrder.id,
+      id: numericId,
       name: result.data.draftOrderCreate.draftOrder.name,
       invoice_url: result.data.draftOrderCreate.draftOrder.invoiceUrl,
       status: result.data.draftOrderCreate.draftOrder.status,

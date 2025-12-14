@@ -333,8 +333,8 @@ export async function registerRoutes(
       const commissionRate = await storage.getApplicableCommissionRate(stylist.id, periodSales);
       const commissionAmount = (totalAmount * commissionRate) / 100;
 
-      // Create POS order in Shopify
-      let shopifyOrderId: string | undefined;
+      // Create draft order in Shopify with product matching
+      let shopifyDraftOrderId: string | undefined;
       let productTags: string[] = [];
       
       if (settings.shopifyStoreUrl && settings.shopifyAccessToken) {
@@ -366,7 +366,7 @@ export async function registerRoutes(
           ...productTags,
         ];
         
-        const shopifyOrder = await shopifyClient.createOrder({
+        const draftOrder = await shopifyClient.createDraftOrder({
           customerName: customerName,
           customerEmail: customerEmail,
           lineItems: [{
@@ -379,14 +379,14 @@ export async function registerRoutes(
           note: `Vagaro Appointment #${appointmentId}`,
         });
         
-        shopifyOrderId = shopifyOrder.id;
-        console.log(`[Vagaro Webhook] Created Shopify POS order: ${shopifyOrder.name} (${shopifyOrderId})`);
+        shopifyDraftOrderId = draftOrder.id;
+        console.log(`[Vagaro Webhook] Created Shopify draft order: ${draftOrder.name} (${shopifyDraftOrderId})`);
       }
 
       // Create order in database
       const order = await storage.createOrder({
         vagaroAppointmentId: appointmentId,
-        shopifyOrderId: shopifyOrderId,
+        shopifyDraftOrderId: shopifyDraftOrderId,
         stylistId: stylist.id,
         customerName: customerName,
         customerEmail: customerEmail,
@@ -394,7 +394,7 @@ export async function registerRoutes(
         totalAmount: totalAmount.toFixed(2),
         tipAmount: "0",
         commissionAmount: commissionAmount.toFixed(2),
-        status: shopifyOrderId ? "paid" : "draft",
+        status: "draft",
       });
 
       console.log(`[Vagaro Webhook] Order created: ${order.id}`);
