@@ -792,6 +792,22 @@ export default function Dashboard() {
                             <span className="text-xs text-muted-foreground">%</span>
                             <span className="text-xs text-muted-foreground ml-2">(Used when no tiers are set)</span>
                           </div>
+                          <div className="flex items-center gap-2 ml-7 mt-2">
+                            <span className="text-xs text-muted-foreground">Shopify Staff ID:</span>
+                            <Input 
+                              className="w-32 h-8" 
+                              value={stylist.shopifyStaffId || ""} 
+                              placeholder="e.g. 12345678"
+                              onChange={(e) => 
+                                updateStylistMutation.mutate({ 
+                                  id: stylist.id, 
+                                  data: { shopifyStaffId: e.target.value || null } 
+                                })
+                              }
+                              data-testid={`input-shopify-staff-${stylist.id}`}
+                            />
+                            <span className="text-xs text-muted-foreground">(For POS attribution)</span>
+                          </div>
                         </div>
                       ))}
                       {stylists.length === 0 && (
