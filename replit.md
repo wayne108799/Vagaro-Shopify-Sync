@@ -50,7 +50,10 @@ Database tables:
 
 ### External Integrations
 - **Vagaro API**: OAuth2 authentication, fetches appointments and employee data
-- **Shopify Admin API**: GraphQL API for creating draft orders
+- **Shopify Admin API**: GraphQL API (2024-10) for creating draft orders with product matching
+  - Searches for matching Shopify products by service name
+  - Uses product variant IDs and tags when a match is found
+  - Draft orders appear in Shopify POS for checkout
 
 ### Authentication
 - Admin dashboard: Session-based (no current auth implementation visible)
