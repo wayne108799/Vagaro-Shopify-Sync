@@ -11,6 +11,8 @@ export interface ShopifyDraftOrderInput {
   }>;
   tags?: string[];
   note?: string;
+  stylistName?: string;
+  stylistId?: string;
 }
 
 export interface ShopifyDraftOrder {
@@ -260,12 +262,21 @@ export class ShopifyClient {
       };
     });
 
+    const customAttributes: Array<{key: string, value: string}> = [];
+    if (input.stylistName) {
+      customAttributes.push({ key: "stylist_name", value: input.stylistName });
+    }
+    if (input.stylistId) {
+      customAttributes.push({ key: "stylist_id", value: input.stylistId });
+    }
+
     const variables = {
       input: {
         email: input.customerEmail,
         note: input.note,
         tags: input.tags || [],
         lineItems,
+        customAttributes: customAttributes.length > 0 ? customAttributes : undefined,
       },
     };
 

@@ -377,6 +377,8 @@ export async function registerRoutes(
           }],
           tags: orderTags,
           note: `Vagaro Appointment #${appointmentId}`,
+          stylistName: stylist.name,
+          stylistId: stylist.id,
         });
         
         shopifyDraftOrderId = draftOrder.id;
@@ -405,30 +407,87 @@ export async function registerRoutes(
     }
   });
 
-  // Shopify webhook endpoint for order updates
+  // Shopify webhook endpoint for order updates (handles orders/create when draft is paid)
   app.post("/api/webhooks/shopify", async (req, res) => {
     try {
       const shopifyOrder = req.body;
+      console.log("[Shopify Webhook] Received:", JSON.stringify(shopifyOrder, null, 2));
       
-      // Find order by Shopify order ID
+      // Check if this order came from a draft order
+      const sourceName = shopifyOrder.source_name;
+      const isFromDraft = sourceName === "draft_order" || sourceName === "shopify_draft_order";
+      
+      // Find order by Shopify order ID first, then by draft order ID
       const allOrders = await storage.getOrders({});
-      const order = allOrders.find(o => o.shopifyOrderId === shopifyOrder.id.toString());
+      let order = allOrders.find(o => o.shopifyOrderId === shopifyOrder.id.toString());
+      
+      // If not found by order ID and this came from a draft, try to find by draft order ID
+      if (!order && isFromDraft) {
+        // The draft order ID might be in tags or we need to match by other criteria
+        // Try matching by customer email and recent draft orders
+        const customerEmail = shopifyOrder.email;
+        const draftOrders = allOrders.filter(o => 
+          o.status === "draft" && 
+          o.shopifyDraftOrderId && 
+          o.customerEmail === customerEmail
+        );
+        
+        if (draftOrders.length === 1) {
+          order = draftOrders[0];
+          console.log(`[Shopify Webhook] Matched draft order by email: ${order.id}`);
+        } else if (draftOrders.length > 1) {
+          // Try to match by total amount as secondary criteria
+          const orderTotal = parseFloat(shopifyOrder.total_price || "0");
+          order = draftOrders.find(o => Math.abs(parseFloat(o.totalAmount) - orderTotal) < 0.01);
+          if (order) {
+            console.log(`[Shopify Webhook] Matched draft order by total: ${order.id}`);
+          }
+        }
+      }
       
       if (!order) {
+        console.log("[Shopify Webhook] No matching order found");
         return res.json({ message: "Order not found" });
       }
 
-      // Update order with payment info
-      const tipAmount = parseFloat(shopifyOrder.current_total_tip_set?.shop_money?.amount || "0");
+      // Extract actual values from the paid order
+      const newTotalAmount = parseFloat(shopifyOrder.total_price || shopifyOrder.subtotal_price || "0");
+      const tipAmount = parseFloat(shopifyOrder.current_total_tip_set?.shop_money?.amount || shopifyOrder.total_tip_received || "0");
       
+      // Extract services from line items
+      const lineItems = shopifyOrder.line_items || [];
+      const services = lineItems.map((item: any) => item.title || item.name);
+      
+      // Recalculate commission based on new total
+      const stylist = await storage.getStylist(order.stylistId);
+      let commissionAmount = parseFloat(order.commissionAmount);
+      
+      if (stylist && newTotalAmount !== parseFloat(order.totalAmount)) {
+        // Get applicable commission rate and recalculate
+        const payPeriod = getPayPeriod(new Date());
+        const periodOrders = await storage.getOrdersForPeriod(payPeriod.start, payPeriod.end, stylist.id, false);
+        const periodSales = periodOrders
+          .filter(o => o.id !== order!.id) // Exclude current order
+          .reduce((sum, o) => sum + parseFloat(o.totalAmount), 0);
+        
+        const commissionRate = await storage.getApplicableCommissionRate(stylist.id, periodSales + newTotalAmount);
+        commissionAmount = (newTotalAmount * commissionRate) / 100;
+        console.log(`[Shopify Webhook] Recalculated commission: $${commissionAmount.toFixed(2)} at ${commissionRate}%`);
+      }
+      
+      // Update order with actual payment info
       await storage.updateOrder(order.id, {
         status: "paid",
+        totalAmount: newTotalAmount.toFixed(2),
         tipAmount: tipAmount.toFixed(2),
+        commissionAmount: commissionAmount.toFixed(2),
+        services: services.length > 0 ? services : order.services,
         paidAt: new Date(),
         shopifyOrderId: shopifyOrder.id.toString(),
       });
 
-      res.json({ message: "Order updated" });
+      console.log(`[Shopify Webhook] Order ${order.id} updated - Total: $${newTotalAmount.toFixed(2)}, Tip: $${tipAmount.toFixed(2)}, Commission: $${commissionAmount.toFixed(2)}`);
+      res.json({ message: "Order updated", orderId: order.id });
     } catch (error: any) {
       console.error("Shopify webhook error:", error);
       res.status(500).json({ error: error.message });
