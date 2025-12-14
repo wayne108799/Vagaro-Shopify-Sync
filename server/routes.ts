@@ -333,30 +333,60 @@ export async function registerRoutes(
       const commissionRate = await storage.getApplicableCommissionRate(stylist.id, periodSales);
       const commissionAmount = (totalAmount * commissionRate) / 100;
 
-      // Create draft order in Shopify
-      let shopifyDraftOrderId: string | undefined;
+      // Create POS order in Shopify
+      let shopifyOrderId: string | undefined;
+      let productTags: string[] = [];
       
       if (settings.shopifyStoreUrl && settings.shopifyAccessToken) {
         const shopifyClient = new ShopifyClient(settings);
-        const draftOrder = await shopifyClient.createDraftOrder({
+        
+        // Try to find matching Shopify product for the service
+        let variantId: string | undefined;
+        try {
+          console.log(`[Vagaro Webhook] Searching for Shopify product matching: ${serviceTitle}`);
+          const product = await shopifyClient.searchProductByTitle(serviceTitle);
+          if (product) {
+            console.log(`[Vagaro Webhook] Found matching product: ${product.title} (${product.id})`);
+            productTags = product.tags;
+            if (product.variants.length > 0) {
+              variantId = product.variants[0].id;
+              console.log(`[Vagaro Webhook] Using variant: ${variantId}`);
+            }
+          } else {
+            console.log(`[Vagaro Webhook] No matching Shopify product found for: ${serviceTitle}`);
+          }
+        } catch (searchError: any) {
+          console.log(`[Vagaro Webhook] Product search error: ${searchError.message}`);
+        }
+        
+        // Combine product tags with default tags
+        const orderTags = [
+          settings.defaultOrderTag,
+          `stylist:${stylist.name}`,
+          ...productTags,
+        ];
+        
+        const shopifyOrder = await shopifyClient.createOrder({
           customerName: customerName,
           customerEmail: customerEmail,
           lineItems: [{
+            variantId: variantId,
             title: serviceTitle,
             price: totalAmount.toString(),
             quantity: 1,
           }],
-          tags: [settings.defaultOrderTag, `stylist:${stylist.name}`],
+          tags: orderTags,
           note: `Vagaro Appointment #${appointmentId}`,
         });
         
-        shopifyDraftOrderId = draftOrder.id;
+        shopifyOrderId = shopifyOrder.id;
+        console.log(`[Vagaro Webhook] Created Shopify POS order: ${shopifyOrder.name} (${shopifyOrderId})`);
       }
 
       // Create order in database
       const order = await storage.createOrder({
         vagaroAppointmentId: appointmentId,
-        shopifyDraftOrderId,
+        shopifyOrderId: shopifyOrderId,
         stylistId: stylist.id,
         customerName: customerName,
         customerEmail: customerEmail,
@@ -364,7 +394,7 @@ export async function registerRoutes(
         totalAmount: totalAmount.toFixed(2),
         tipAmount: "0",
         commissionAmount: commissionAmount.toFixed(2),
-        status: "draft",
+        status: shopifyOrderId ? "paid" : "draft",
       });
 
       console.log(`[Vagaro Webhook] Order created: ${order.id}`);
