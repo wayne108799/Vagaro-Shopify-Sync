@@ -454,6 +454,19 @@ export async function registerRoutes(
       const newTotalAmount = parseFloat(shopifyOrder.total_price || shopifyOrder.subtotal_price || "0");
       const tipAmount = parseFloat(shopifyOrder.current_total_tip_set?.shop_money?.amount || shopifyOrder.total_tip_received || "0");
       
+      // Extract the POS staff member who processed the sale
+      const posUserId = shopifyOrder.user_id;
+      let processedByStylist = null;
+      if (posUserId) {
+        console.log(`[Shopify Webhook] Order processed by POS user ID: ${posUserId}`);
+        // Try to find stylist by Shopify staff ID
+        const allStylists = await storage.getStylists();
+        processedByStylist = allStylists.find(s => s.shopifyStaffId === posUserId.toString());
+        if (processedByStylist) {
+          console.log(`[Shopify Webhook] Matched to stylist: ${processedByStylist.name}`);
+        }
+      }
+      
       // Extract services from line items
       const lineItems = shopifyOrder.line_items || [];
       const services = lineItems.map((item: any) => item.title || item.name);
