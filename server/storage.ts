@@ -22,7 +22,7 @@ import {
   timeEntries,
   commissionAdjustments
 } from "@shared/schema";
-import { eq, desc, and, gte, lte, asc, isNull } from "drizzle-orm";
+import { eq, desc, and, gte, lte, asc, isNull, sql } from "drizzle-orm";
 
 function getPayPeriod(date: Date) {
   const day = date.getDate();
@@ -116,7 +116,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.username, username)).limit(1);
+    const result = await db.select().from(users).where(sql`lower(${users.username}) = lower(${username})`).limit(1);
     return result[0];
   }
 
