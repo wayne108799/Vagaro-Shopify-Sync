@@ -3,8 +3,17 @@ import { createServer, type Server } from "http";
 import { storage, getPayPeriod } from "./storage";
 import { ShopifyClient } from "./shopify";
 import { VagaroClient } from "./vagaro";
-import { insertStylistSchema, insertOrderSchema, insertSettingsSchema, type Stylist } from "@shared/schema";
+import { insertStylistSchema, insertOrderSchema, insertSettingsSchema, type Stylist, users } from "@shared/schema";
 import { z } from "zod";
+import { db } from "../db";
+
+declare module "express-session" {
+  interface SessionData {
+    adminId?: string;
+    adminUsername?: string;
+    stylistId?: string;
+  }
+}
 
 function sanitizeStylist(stylist: Stylist) {
   const { pinHash, ...rest } = stylist;
@@ -958,6 +967,79 @@ export async function registerRoutes(
         stylistId as string | undefined
       );
       res.json(report);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin authentication
+  app.post("/api/admin/login", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      if (!username || !password) {
+        return res.status(400).json({ error: "Username and password are required" });
+      }
+      const user = await storage.getUserByUsername(username);
+      if (!user) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      const crypto = await import("crypto");
+      const passwordHash = crypto.createHash("sha256").update(password).digest("hex");
+      if (passwordHash !== user.password) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      req.session.adminId = user.id;
+      req.session.adminUsername = user.username;
+      res.json({ message: "Login successful", user: { id: user.id, username: user.username } });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/logout", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Failed to logout" });
+      }
+      res.json({ message: "Logged out successfully" });
+    });
+  });
+
+  app.get("/api/admin/me", async (req, res) => {
+    try {
+      if (!req.session.adminId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const user = await storage.getUser(req.session.adminId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      res.json({ id: user.id, username: user.username });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin registration (first user only)
+  app.post("/api/admin/register", async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      if (!username || !password) {
+        return res.status(400).json({ error: "Username and password are required" });
+      }
+      if (password.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
+      const existingUsers = await db.select().from(users);
+      if (existingUsers.length > 0) {
+        return res.status(403).json({ error: "Admin already exists. Contact existing admin." });
+      }
+      const crypto = await import("crypto");
+      const passwordHash = crypto.createHash("sha256").update(password).digest("hex");
+      const user = await storage.createUser({ username, password: passwordHash });
+      req.session.adminId = user.id;
+      req.session.adminUsername = user.username;
+      res.json({ message: "Admin created successfully", user: { id: user.id, username: user.username } });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
