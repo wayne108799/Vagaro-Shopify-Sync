@@ -87,7 +87,7 @@ export interface IStorage {
   
   voidOrder(id: string, reason: string): Promise<Order | undefined>;
   restoreOrder(id: string): Promise<Order | undefined>;
-  getOrdersForPeriod(startDate: string, endDate: string, stylistId?: string, includeVoided?: boolean): Promise<Order[]>;
+  getOrdersForPeriod(startDate: string, endDate: string, stylistId?: string, includeVoided?: boolean, excludeDisabledStylists?: boolean): Promise<Order[]>;
   
   getCommissionAdjustments(filters?: { stylistId?: string; periodStart?: string; periodEnd?: string }): Promise<CommissionAdjustment[]>;
   createCommissionAdjustment(data: InsertCommissionAdjustment): Promise<CommissionAdjustment>;
@@ -396,7 +396,9 @@ export class DatabaseStorage implements IStorage {
 
   async getTimeclockReport(startDate: string, endDate: string, stylistId?: string): Promise<{ stylistId: string; stylistName: string; totalHours: number; hourlyRate: string; totalEarnings: number }[]> {
     const allStylists = await this.getStylists();
-    const filteredStylists = stylistId ? allStylists.filter(s => s.id === stylistId) : allStylists;
+    const filteredStylists = stylistId 
+      ? allStylists.filter(s => s.id === stylistId) 
+      : allStylists.filter(s => s.enabled);
     
     const results = [];
     
@@ -433,7 +435,7 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
-  async getOrdersForPeriod(startDate: string, endDate: string, stylistId?: string, includeVoided: boolean = false): Promise<Order[]> {
+  async getOrdersForPeriod(startDate: string, endDate: string, stylistId?: string, includeVoided: boolean = false, excludeDisabledStylists: boolean = false): Promise<Order[]> {
     const conditions = [
       gte(orders.createdAt, new Date(startDate + "T00:00:00")),
       lte(orders.createdAt, new Date(endDate + "T23:59:59.999")),
@@ -447,9 +449,17 @@ export class DatabaseStorage implements IStorage {
       conditions.push(isNull(orders.voidedAt));
     }
     
-    return await db.select().from(orders)
+    let result = await db.select().from(orders)
       .where(and(...conditions))
       .orderBy(desc(orders.createdAt));
+    
+    if (excludeDisabledStylists && !stylistId) {
+      const enabledStylists = await this.getStylists();
+      const enabledIds = new Set(enabledStylists.filter(s => s.enabled).map(s => s.id));
+      result = result.filter(o => enabledIds.has(o.stylistId));
+    }
+    
+    return result;
   }
 
   async getCommissionAdjustments(filters?: { stylistId?: string; periodStart?: string; periodEnd?: string }): Promise<CommissionAdjustment[]> {
@@ -502,7 +512,9 @@ export class DatabaseStorage implements IStorage {
     orderCount: number;
   }[]> {
     const allStylists = await this.getStylists();
-    const filteredStylists = stylistId ? allStylists.filter(s => s.id === stylistId) : allStylists;
+    const filteredStylists = stylistId 
+      ? allStylists.filter(s => s.id === stylistId) 
+      : allStylists.filter(s => s.enabled);
     
     const results = [];
     

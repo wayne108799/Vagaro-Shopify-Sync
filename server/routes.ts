@@ -882,7 +882,7 @@ export async function registerRoutes(
   // Admin Orders - get orders for period
   app.get("/api/admin/orders", requireAdmin, async (req, res) => {
     try {
-      const { startDate, endDate, stylistId, includeVoided } = req.query;
+      const { startDate, endDate, stylistId, includeVoided, excludeDisabled } = req.query;
       if (!startDate || !endDate) {
         return res.status(400).json({ error: "startDate and endDate are required" });
       }
@@ -890,7 +890,8 @@ export async function registerRoutes(
         startDate as string,
         endDate as string,
         stylistId as string | undefined,
-        includeVoided === "true"
+        includeVoided === "true",
+        excludeDisabled !== "false"
       );
       res.json(orders);
     } catch (error: any) {
