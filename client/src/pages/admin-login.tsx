@@ -50,7 +50,7 @@ export default function AdminLogin() {
       }
 
       toast({ title: "Success", description: isRegistering ? "Admin account created" : "Logged in successfully" });
-      setLocation("/");
+      window.location.href = "/";
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
