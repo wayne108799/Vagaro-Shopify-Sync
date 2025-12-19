@@ -23,6 +23,8 @@ import {
   Ban,
   RotateCcw,
   Percent,
+  Menu,
+  X,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -91,6 +93,7 @@ export default function Dashboard() {
   const [adjustmentForm, setAdjustmentForm] = useState({ stylistId: "", amount: "", reason: "" });
   const [showVoidedOrders, setShowVoidedOrders] = useState(false);
   const [hideDisabledStylists, setHideDisabledStylists] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const { data: stylists = [] } = useQuery({
@@ -449,9 +452,91 @@ export default function Dashboard() {
   const failedOrders = todayOrders.filter(o => !o.shopifyDraftOrderId && o.status === "draft");
   const successRate = todayOrders.length > 0 ? (successfulOrders.length / todayOrders.length) * 100 : 100;
 
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setMobileMenuOpen(false);
+  };
+
+  const navItems = [
+    { id: "overview", label: "Overview", icon: LayoutDashboard, section: "Admin" },
+    { id: "connections", label: "Connections", icon: Store, section: "Admin" },
+    { id: "configuration", label: "Configuration", icon: Settings, section: "Admin" },
+    { id: "logs", label: "Activity Logs", icon: Activity, section: "Admin" },
+    { id: "reporting", label: "Reporting", icon: FileText, section: "Admin" },
+    { id: "commissions", label: "My Earnings", icon: Wallet, section: "Stylist Portal" },
+  ];
+
+  const renderNavItems = () => (
+    <>
+      <div className="text-xs font-semibold text-muted-foreground mb-2 px-4 uppercase tracking-wider">Admin</div>
+      {navItems.filter(item => item.section === "Admin").map(item => (
+        <Button 
+          key={item.id}
+          variant={activeTab === item.id ? "secondary" : "ghost"} 
+          className="w-full justify-start" 
+          onClick={() => handleTabChange(item.id)}
+          data-testid={`tab-${item.id}`}
+        >
+          <item.icon className="mr-2 w-4 h-4" /> {item.label}
+        </Button>
+      ))}
+      
+      <div className="text-xs font-semibold text-muted-foreground mt-6 mb-2 px-4 uppercase tracking-wider">Stylist Portal</div>
+      {navItems.filter(item => item.section === "Stylist Portal").map(item => (
+        <Button 
+          key={item.id}
+          variant={activeTab === item.id ? "secondary" : "ghost"} 
+          className="w-full justify-start" 
+          onClick={() => handleTabChange(item.id)}
+          data-testid={`tab-${item.id}`}
+        >
+          <item.icon className="mr-2 w-4 h-4" /> {item.label}
+        </Button>
+      ))}
+    </>
+  );
+
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Sidebar */}
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+          data-testid="mobile-menu-overlay"
+        />
+      )}
+
+      {/* Mobile Sidebar */}
+      <div className={`fixed inset-y-0 left-0 w-64 border-r bg-card z-50 transform transition-transform duration-200 ease-in-out md:hidden ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="p-6 border-b flex items-center justify-between">
+          <div className="flex items-center gap-2 font-bold text-lg">
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-primary-foreground">
+              <ArrowRightLeft className="w-5 h-5" />
+            </div>
+            SyncMaster
+          </div>
+          <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(false)} data-testid="close-mobile-menu">
+            <X className="w-5 h-5" />
+          </Button>
+        </div>
+        <nav className="flex-1 p-4 space-y-2">
+          {renderNavItems()}
+        </nav>
+        <div className="p-4 border-t">
+          <div className="flex items-center gap-3 px-2 py-2">
+            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+              <span className="font-medium text-xs">JS</span>
+            </div>
+            <div className="text-sm">
+              <div className="font-medium">Jane Salon</div>
+              <div className="text-xs text-muted-foreground">Admin</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop Sidebar */}
       <div className="w-64 border-r bg-card hidden md:flex flex-col">
         <div className="p-6 border-b">
           <div className="flex items-center gap-2 font-bold text-lg">
@@ -462,57 +547,7 @@ export default function Dashboard() {
           </div>
         </div>
         <nav className="flex-1 p-4 space-y-2">
-          <div className="text-xs font-semibold text-muted-foreground mb-2 px-4 uppercase tracking-wider">Admin</div>
-          <Button 
-            variant={activeTab === "overview" ? "secondary" : "ghost"} 
-            className="w-full justify-start" 
-            onClick={() => setActiveTab("overview")}
-            data-testid="tab-overview"
-          >
-            <LayoutDashboard className="mr-2 w-4 h-4" /> Overview
-          </Button>
-          <Button 
-            variant={activeTab === "connections" ? "secondary" : "ghost"} 
-            className="w-full justify-start" 
-            onClick={() => setActiveTab("connections")}
-            data-testid="tab-connections"
-          >
-            <Store className="mr-2 w-4 h-4" /> Connections
-          </Button>
-          <Button 
-            variant={activeTab === "configuration" ? "secondary" : "ghost"} 
-            className="w-full justify-start" 
-            onClick={() => setActiveTab("configuration")}
-            data-testid="tab-configuration"
-          >
-            <Settings className="mr-2 w-4 h-4" /> Configuration
-          </Button>
-          <Button 
-            variant={activeTab === "logs" ? "secondary" : "ghost"} 
-            className="w-full justify-start" 
-            onClick={() => setActiveTab("logs")}
-            data-testid="tab-logs"
-          >
-            <Activity className="mr-2 w-4 h-4" /> Activity Logs
-          </Button>
-          <Button 
-            variant={activeTab === "reporting" ? "secondary" : "ghost"} 
-            className="w-full justify-start" 
-            onClick={() => setActiveTab("reporting")}
-            data-testid="tab-reporting"
-          >
-            <FileText className="mr-2 w-4 h-4" /> Reporting
-          </Button>
-          
-          <div className="text-xs font-semibold text-muted-foreground mt-6 mb-2 px-4 uppercase tracking-wider">Stylist Portal</div>
-          <Button 
-            variant={activeTab === "commissions" ? "secondary" : "ghost"} 
-            className="w-full justify-start" 
-            onClick={() => setActiveTab("commissions")}
-            data-testid="tab-commissions"
-          >
-            <Wallet className="mr-2 w-4 h-4" /> My Earnings
-          </Button>
+          {renderNavItems()}
         </nav>
         <div className="p-4 border-t">
           <div className="flex items-center gap-3 px-2 py-2">
@@ -529,8 +564,19 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
-        <header className="h-16 border-b bg-card/50 backdrop-blur px-6 flex items-center justify-between sticky top-0 z-10">
-          <h1 className="font-semibold text-lg capitalize">{activeTab === "commissions" ? "My Earnings" : activeTab}</h1>
+        <header className="h-16 border-b bg-card/50 backdrop-blur px-4 md:px-6 flex items-center justify-between sticky top-0 z-10">
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="md:hidden" 
+              onClick={() => setMobileMenuOpen(true)}
+              data-testid="open-mobile-menu"
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
+            <h1 className="font-semibold text-lg capitalize">{activeTab === "commissions" ? "My Earnings" : activeTab}</h1>
+          </div>
           <div className="flex items-center gap-4">
             {activeTab === "commissions" && selectedStylist && (
               <Select value={selectedStylistId} onValueChange={setSelectedStylistId}>
