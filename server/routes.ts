@@ -978,6 +978,16 @@ export async function registerRoutes(
     }
   });
 
+  // Check if any admin users exist
+  app.get("/api/admin/has-users", async (_req, res) => {
+    try {
+      const hasUsers = await storage.hasAnyUsers();
+      res.json({ hasUsers });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Admin authentication
   app.post("/api/admin/login", async (req, res) => {
     try {

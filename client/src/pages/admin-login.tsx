@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,20 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
+  const [hasAdmins, setHasAdmins] = useState(true);
   const { toast } = useToast();
+
+  useEffect(() => {
+    fetch("/api/admin/has-users", { credentials: "include" })
+      .then(res => res.json())
+      .then(data => {
+        setHasAdmins(data.hasUsers);
+        if (!data.hasUsers) {
+          setIsRegistering(true);
+        }
+      })
+      .catch(() => setHasAdmins(true));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,6 +40,7 @@ export default function AdminLogin() {
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ username, password }),
       });
 
@@ -94,13 +108,15 @@ export default function AdminLogin() {
           </form>
 
           <div className="mt-4 text-center space-y-2">
-            <Button
-              variant="link"
-              onClick={() => setIsRegistering(!isRegistering)}
-              data-testid="link-toggle-mode"
-            >
-              {isRegistering ? "Already have an account? Sign in" : "First time? Create admin account"}
-            </Button>
+            {!hasAdmins && (
+              <Button
+                variant="link"
+                onClick={() => setIsRegistering(!isRegistering)}
+                data-testid="link-toggle-mode"
+              >
+                {isRegistering ? "Already have an account? Sign in" : "First time? Create admin account"}
+              </Button>
+            )}
             <div>
               <Button variant="link" onClick={() => setLocation("/stylist")} data-testid="link-stylist">
                 Stylist Portal
