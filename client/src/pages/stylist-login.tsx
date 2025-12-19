@@ -133,7 +133,7 @@ export default function StylistLogin() {
             )}
 
             <div className="text-center pt-4">
-              <Button variant="link" onClick={() => setLocation("/")} data-testid="link-admin">
+              <Button variant="link" onClick={() => setLocation("/admin/login")} data-testid="link-admin">
                 Admin Login
               </Button>
             </div>

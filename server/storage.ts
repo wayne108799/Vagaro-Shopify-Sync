@@ -48,6 +48,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  hasAnyUsers(): Promise<boolean>;
   
   getStylists(): Promise<Stylist[]>;
   getStylist(id: string): Promise<Stylist | undefined>;
@@ -122,6 +123,11 @@ export class DatabaseStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const result = await db.insert(users).values(insertUser).returning();
     return result[0];
+  }
+
+  async hasAnyUsers(): Promise<boolean> {
+    const result = await db.select({ id: users.id }).from(users).limit(1);
+    return result.length > 0;
   }
 
   async getStylists(): Promise<Stylist[]> {

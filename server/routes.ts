@@ -1,11 +1,10 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage, getPayPeriod } from "./storage";
 import { ShopifyClient } from "./shopify";
 import { VagaroClient } from "./vagaro";
-import { insertStylistSchema, insertOrderSchema, insertSettingsSchema, type Stylist, users } from "@shared/schema";
+import { insertStylistSchema, insertOrderSchema, insertSettingsSchema, type Stylist } from "@shared/schema";
 import { z } from "zod";
-import { db } from "../db";
 
 declare module "express-session" {
   interface SessionData {
@@ -13,6 +12,13 @@ declare module "express-session" {
     adminUsername?: string;
     stylistId?: string;
   }
+}
+
+function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.session.adminId) {
+    return res.status(401).json({ error: "Admin authentication required" });
+  }
+  next();
 }
 
 function sanitizeStylist(stylist: Stylist) {
@@ -51,7 +57,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/stylists", async (req, res) => {
+  app.post("/api/stylists", requireAdmin, async (req, res) => {
     try {
       const validated = insertStylistSchema.parse(req.body);
       const stylist = await storage.createStylist(validated);
@@ -61,7 +67,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/stylists/:id", async (req, res) => {
+  app.patch("/api/stylists/:id", requireAdmin, async (req, res) => {
     try {
       const stylist = await storage.updateStylist(req.params.id, req.body);
       if (!stylist) {
@@ -73,7 +79,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/stylists/:id", async (req, res) => {
+  app.delete("/api/stylists/:id", requireAdmin, async (req, res) => {
     try {
       const deleted = await storage.deleteStylist(req.params.id);
       if (!deleted) {
@@ -95,7 +101,7 @@ export async function registerRoutes(
     }
   });
 
-  app.put("/api/stylists/:id/commission-tiers", async (req, res) => {
+  app.put("/api/stylists/:id/commission-tiers", requireAdmin, async (req, res) => {
     try {
       const { tiers } = req.body;
       if (!Array.isArray(tiers)) {
@@ -167,7 +173,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch("/api/settings", async (req, res) => {
+  app.patch("/api/settings", requireAdmin, async (req, res) => {
     try {
       const settingsData = await storage.upsertSettings(req.body);
       res.json(settingsData);
@@ -177,7 +183,7 @@ export async function registerRoutes(
   });
 
   // Sync stylists from Vagaro
-  app.post("/api/vagaro/sync-stylists", async (_req, res) => {
+  app.post("/api/vagaro/sync-stylists", requireAdmin, async (_req, res) => {
     try {
       const settingsData = await storage.getSettings();
       if (!settingsData?.vagaroClientId || !settingsData?.vagaroClientSecret) {
@@ -545,7 +551,7 @@ export async function registerRoutes(
   });
 
   // Stylist PIN management (admin)
-  app.post("/api/stylists/:id/pin", async (req, res) => {
+  app.post("/api/stylists/:id/pin", requireAdmin, async (req, res) => {
     try {
       const { pin } = req.body;
       if (!pin || pin.length < 4) {
@@ -720,7 +726,7 @@ export async function registerRoutes(
   });
 
   // Admin Timeclock - get all entries with filters
-  app.get("/api/admin/timeclock/entries", async (req, res) => {
+  app.get("/api/admin/timeclock/entries", requireAdmin, async (req, res) => {
     try {
       const filters: { stylistId?: string; startDate?: string; endDate?: string } = {};
       if (req.query.stylistId) filters.stylistId = req.query.stylistId as string;
@@ -735,7 +741,7 @@ export async function registerRoutes(
   });
 
   // Admin Timeclock - create entry
-  app.post("/api/admin/timeclock/entries", async (req, res) => {
+  app.post("/api/admin/timeclock/entries", requireAdmin, async (req, res) => {
     try {
       const { stylistId, clockIn, clockOut } = req.body;
       if (!stylistId || !clockIn) {
@@ -757,7 +763,7 @@ export async function registerRoutes(
   });
 
   // Admin Timeclock - update entry
-  app.patch("/api/admin/timeclock/entries/:id", async (req, res) => {
+  app.patch("/api/admin/timeclock/entries/:id", requireAdmin, async (req, res) => {
     try {
       const { clockIn, clockOut } = req.body;
       const updateData: any = {};
@@ -781,7 +787,7 @@ export async function registerRoutes(
   });
 
   // Admin Timeclock - delete entry
-  app.delete("/api/admin/timeclock/entries/:id", async (req, res) => {
+  app.delete("/api/admin/timeclock/entries/:id", requireAdmin, async (req, res) => {
     try {
       const deleted = await storage.deleteTimeEntry(req.params.id);
       if (!deleted) {
@@ -794,7 +800,7 @@ export async function registerRoutes(
   });
 
   // Admin Timeclock - get report
-  app.get("/api/admin/timeclock/report", async (req, res) => {
+  app.get("/api/admin/timeclock/report", requireAdmin, async (req, res) => {
     try {
       const { startDate, endDate, stylistId } = req.query;
       if (!startDate || !endDate) {
@@ -812,7 +818,7 @@ export async function registerRoutes(
   });
 
   // Admin Manual Orders - create a manual sale
-  app.post("/api/admin/orders", async (req, res) => {
+  app.post("/api/admin/orders", requireAdmin, async (req, res) => {
     try {
       const { stylistId, customerName, services, totalAmount, tipAmount, notes } = req.body;
       if (!stylistId || !customerName || !totalAmount) {
@@ -844,7 +850,7 @@ export async function registerRoutes(
   });
 
   // Admin Orders - void an order
-  app.post("/api/admin/orders/:id/void", async (req, res) => {
+  app.post("/api/admin/orders/:id/void", requireAdmin, async (req, res) => {
     try {
       const { reason } = req.body;
       if (!reason) {
@@ -861,7 +867,7 @@ export async function registerRoutes(
   });
 
   // Admin Orders - restore a voided order
-  app.post("/api/admin/orders/:id/restore", async (req, res) => {
+  app.post("/api/admin/orders/:id/restore", requireAdmin, async (req, res) => {
     try {
       const order = await storage.restoreOrder(req.params.id);
       if (!order) {
@@ -874,7 +880,7 @@ export async function registerRoutes(
   });
 
   // Admin Orders - get orders for period
-  app.get("/api/admin/orders", async (req, res) => {
+  app.get("/api/admin/orders", requireAdmin, async (req, res) => {
     try {
       const { startDate, endDate, stylistId, includeVoided } = req.query;
       if (!startDate || !endDate) {
@@ -893,7 +899,7 @@ export async function registerRoutes(
   });
 
   // Admin Commission Adjustments - list
-  app.get("/api/admin/commission-adjustments", async (req, res) => {
+  app.get("/api/admin/commission-adjustments", requireAdmin, async (req, res) => {
     try {
       const filters: { stylistId?: string; periodStart?: string; periodEnd?: string } = {};
       if (req.query.stylistId) filters.stylistId = req.query.stylistId as string;
@@ -908,7 +914,7 @@ export async function registerRoutes(
   });
 
   // Admin Commission Adjustments - create
-  app.post("/api/admin/commission-adjustments", async (req, res) => {
+  app.post("/api/admin/commission-adjustments", requireAdmin, async (req, res) => {
     try {
       const { stylistId, periodStart, periodEnd, amount, reason, orderId } = req.body;
       if (!stylistId || !periodStart || !periodEnd || amount === undefined || !reason) {
@@ -929,7 +935,7 @@ export async function registerRoutes(
   });
 
   // Admin Commission Adjustments - update
-  app.patch("/api/admin/commission-adjustments/:id", async (req, res) => {
+  app.patch("/api/admin/commission-adjustments/:id", requireAdmin, async (req, res) => {
     try {
       const adjustment = await storage.updateCommissionAdjustment(req.params.id, req.body);
       if (!adjustment) {
@@ -942,7 +948,7 @@ export async function registerRoutes(
   });
 
   // Admin Commission Adjustments - delete
-  app.delete("/api/admin/commission-adjustments/:id", async (req, res) => {
+  app.delete("/api/admin/commission-adjustments/:id", requireAdmin, async (req, res) => {
     try {
       const deleted = await storage.deleteCommissionAdjustment(req.params.id);
       if (!deleted) {
@@ -955,7 +961,7 @@ export async function registerRoutes(
   });
 
   // Admin Commission Report
-  app.get("/api/admin/commission-report", async (req, res) => {
+  app.get("/api/admin/commission-report", requireAdmin, async (req, res) => {
     try {
       const { startDate, endDate, stylistId } = req.query;
       if (!startDate || !endDate) {
@@ -1030,8 +1036,8 @@ export async function registerRoutes(
       if (password.length < 6) {
         return res.status(400).json({ error: "Password must be at least 6 characters" });
       }
-      const existingUsers = await db.select().from(users);
-      if (existingUsers.length > 0) {
+      const hasUsers = await storage.hasAnyUsers();
+      if (hasUsers) {
         return res.status(403).json({ error: "Admin already exists. Contact existing admin." });
       }
       const crypto = await import("crypto");
