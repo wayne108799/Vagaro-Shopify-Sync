@@ -3,16 +3,26 @@ import type { Settings } from "@shared/schema";
 export interface ShopifyDraftOrderInput {
   customerEmail?: string;
   customerName: string;
+  customerPhone?: string;
   lineItems: Array<{
     variantId?: string;
     title: string;
     price: string;
     quantity: number;
+    taxable?: boolean;
   }>;
   tags?: string[];
   note?: string;
   stylistName?: string;
   stylistId?: string;
+}
+
+export interface ShopifyCustomer {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
 }
 
 export interface ShopifyDraftOrder {
@@ -84,6 +94,142 @@ export class ShopifyClient {
     }
 
     return await response.json();
+  }
+
+  async searchCustomer(name: string, phone?: string): Promise<ShopifyCustomer | null> {
+    const query = `
+      query searchCustomers($query: String!) {
+        customers(first: 10, query: $query) {
+          nodes {
+            id
+            firstName
+            lastName
+            email
+            phone
+          }
+        }
+      }
+    `;
+
+    // Search by phone first if available, then by name
+    let searchQuery = phone ? `phone:${phone}` : `name:${name}`;
+    
+    const variables = { query: searchQuery };
+    const result = await this.request("", "POST", { query, variables });
+    
+    const customers = result.data?.customers?.nodes || [];
+    
+    if (customers.length === 0 && phone) {
+      // Try searching by name if phone search fails
+      const nameVariables = { query: `name:${name}` };
+      const nameResult = await this.request("", "POST", { query, variables: nameVariables });
+      const nameCustomers = nameResult.data?.customers?.nodes || [];
+      
+      if (nameCustomers.length > 0) {
+        const customer = nameCustomers[0];
+        return {
+          id: customer.id,
+          firstName: customer.firstName || "",
+          lastName: customer.lastName || "",
+          email: customer.email,
+          phone: customer.phone,
+        };
+      }
+      return null;
+    }
+    
+    if (customers.length === 0) {
+      return null;
+    }
+
+    const customer = customers[0];
+    return {
+      id: customer.id,
+      firstName: customer.firstName || "",
+      lastName: customer.lastName || "",
+      email: customer.email,
+      phone: customer.phone,
+    };
+  }
+
+  async createCustomer(name: string, email?: string, phone?: string): Promise<ShopifyCustomer> {
+    const mutation = `
+      mutation customerCreate($input: CustomerInput!) {
+        customerCreate(input: $input) {
+          customer {
+            id
+            firstName
+            lastName
+            email
+            phone
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    // Split name into first and last name
+    const nameParts = name.trim().split(/\s+/);
+    const firstName = nameParts[0] || "Customer";
+    const lastName = nameParts.slice(1).join(" ") || "";
+
+    const input: any = {
+      firstName,
+      lastName,
+    };
+    
+    if (email) {
+      input.email = email;
+    }
+    if (phone) {
+      input.phone = phone;
+    }
+
+    const variables = { input };
+    const result = await this.request("", "POST", { query: mutation, variables });
+
+    if (result.data?.customerCreate?.userErrors?.length > 0) {
+      console.log("Customer creation warning:", result.data.customerCreate.userErrors[0].message);
+      // If customer creation fails (e.g., duplicate), try to find existing
+      const existing = await this.searchCustomer(name, phone);
+      if (existing) {
+        return existing;
+      }
+      // Return a placeholder if we can't create or find
+      throw new Error(`Could not create customer: ${result.data.customerCreate.userErrors[0].message}`);
+    }
+
+    const customer = result.data.customerCreate.customer;
+    return {
+      id: customer.id,
+      firstName: customer.firstName || "",
+      lastName: customer.lastName || "",
+      email: customer.email,
+      phone: customer.phone,
+    };
+  }
+
+  async findOrCreateCustomer(name: string, email?: string, phone?: string): Promise<ShopifyCustomer | null> {
+    // First try to find existing customer
+    const existing = await this.searchCustomer(name, phone);
+    if (existing) {
+      return existing;
+    }
+
+    // If not found and we have either email or phone, create new customer
+    if (email || phone) {
+      try {
+        return await this.createCustomer(name, email, phone);
+      } catch (error) {
+        console.log("Could not create customer, proceeding without:", error);
+        return null;
+      }
+    }
+
+    return null;
   }
 
   async searchProductByTitle(title: string): Promise<ShopifyProduct | null> {
@@ -248,6 +394,22 @@ export class ShopifyClient {
       }
     `;
 
+    // Find or create customer in Shopify
+    let customerId: string | undefined;
+    try {
+      const customer = await this.findOrCreateCustomer(
+        input.customerName,
+        input.customerEmail,
+        input.customerPhone
+      );
+      if (customer) {
+        customerId = customer.id;
+      }
+    } catch (error) {
+      console.log("Customer lookup/creation failed, proceeding without customer:", error);
+    }
+
+    // Build line items - set taxable: false for custom items (no variantId)
     const lineItems = input.lineItems.map(item => {
       if (item.variantId) {
         return {
@@ -255,10 +417,12 @@ export class ShopifyClient {
           quantity: item.quantity,
         };
       }
+      // Custom line item (product not found) - set tax to 0
       return {
         title: item.title,
         originalUnitPrice: item.price,
         quantity: item.quantity,
+        taxable: false,
       };
     });
 
@@ -270,15 +434,32 @@ export class ShopifyClient {
       customAttributes.push({ key: "stylist_id", value: input.stylistId });
     }
 
-    const variables = {
-      input: {
-        email: input.customerEmail,
-        note: input.note,
-        tags: input.tags || [],
-        lineItems,
-        customAttributes: customAttributes.length > 0 ? customAttributes : undefined,
+    // Reserve inventory for 24 hours for POS/in-store pickup
+    const reserveUntil = new Date();
+    reserveUntil.setHours(reserveUntil.getHours() + 24);
+
+    const draftOrderInput: any = {
+      note: input.note,
+      tags: input.tags || [],
+      lineItems,
+      customAttributes: customAttributes.length > 0 ? customAttributes : undefined,
+      reserveInventoryUntil: reserveUntil.toISOString(),
+      purchasingEntity: {
+        purchasingCompany: null,
       },
     };
+
+    // Attach customer if found/created
+    if (customerId) {
+      draftOrderInput.purchasingEntity = {
+        customerId: customerId,
+      };
+    } else if (input.customerEmail) {
+      // Fall back to email if no customer ID
+      draftOrderInput.email = input.customerEmail;
+    }
+
+    const variables = { input: draftOrderInput };
 
     const result = await this.request("", "POST", { query: mutation, variables });
 

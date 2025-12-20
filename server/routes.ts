@@ -260,6 +260,7 @@ export async function registerRoutes(
       let employeeRole = payload.serviceCategory || "Stylist";
       let customerName = `Customer ${customerId?.substring(0, 8) || 'Unknown'}`;
       let customerEmail: string | undefined = undefined;
+      let customerPhone: string | undefined = undefined;
 
       try {
         if (settings.vagaroClientId && settings.vagaroClientSecret && settings.vagaroMerchantId) {
@@ -298,7 +299,8 @@ export async function registerRoutes(
                 customerName = `${firstName} ${lastName}`.trim();
               }
               customerEmail = (customer as any).email;
-              console.log(`[Vagaro Webhook] Final customer name: ${customerName}, email: ${customerEmail}`);
+              customerPhone = (customer as any).phone || (customer as any).mobilePhone || (customer as any).cellPhone;
+              console.log(`[Vagaro Webhook] Final customer name: ${customerName}, email: ${customerEmail}, phone: ${customerPhone}`);
             }
           }
         }
@@ -384,6 +386,7 @@ export async function registerRoutes(
         const draftOrder = await shopifyClient.createDraftOrder({
           customerName: customerName,
           customerEmail: customerEmail,
+          customerPhone: customerPhone,
           lineItems: [{
             variantId: variantId,
             title: serviceTitle,
