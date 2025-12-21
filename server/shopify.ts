@@ -434,20 +434,22 @@ export class ShopifyClient {
       customAttributes.push({ key: "stylist_id", value: input.stylistId });
     }
 
-    // Reserve inventory for 24 hours for POS/in-store pickup
-    const reserveUntil = new Date();
-    reserveUntil.setHours(reserveUntil.getHours() + 24);
+    // Check if any line items have variants (are reservable)
+    const hasReservableItems = input.lineItems.some(item => item.variantId);
 
     const draftOrderInput: any = {
       note: input.note,
       tags: input.tags || [],
       lineItems,
       customAttributes: customAttributes.length > 0 ? customAttributes : undefined,
-      reserveInventoryUntil: reserveUntil.toISOString(),
-      purchasingEntity: {
-        purchasingCompany: null,
-      },
     };
+
+    // Only reserve inventory if there are actual products with variants
+    if (hasReservableItems) {
+      const reserveUntil = new Date();
+      reserveUntil.setHours(reserveUntil.getHours() + 24);
+      draftOrderInput.reserveInventoryUntil = reserveUntil.toISOString();
+    }
 
     // Attach customer if found/created
     if (customerId) {
