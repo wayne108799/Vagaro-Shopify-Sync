@@ -364,7 +364,7 @@ export async function registerRoutes(
           const product = await shopifyClient.ensureServiceProduct(
             serviceTitle, 
             totalAmount.toString(),
-            [`stylist:${stylist.name}`]
+            []
           );
           console.log(`[Vagaro Webhook] Using product: ${product.title} (${product.id})`);
           productTags = product.tags;
