@@ -357,23 +357,23 @@ export async function registerRoutes(
       if (settings.shopifyStoreUrl && settings.shopifyAccessToken) {
         const shopifyClient = new ShopifyClient(settings);
         
-        // Try to find matching Shopify product for the service
+        // Find or create Shopify product for the service
         let variantId: string | undefined;
         try {
-          console.log(`[Vagaro Webhook] Searching for Shopify product matching: ${serviceTitle}`);
-          const product = await shopifyClient.searchProductByTitle(serviceTitle);
-          if (product) {
-            console.log(`[Vagaro Webhook] Found matching product: ${product.title} (${product.id})`);
-            productTags = product.tags;
-            if (product.variants.length > 0) {
-              variantId = product.variants[0].id;
-              console.log(`[Vagaro Webhook] Using variant: ${variantId}`);
-            }
-          } else {
-            console.log(`[Vagaro Webhook] No matching Shopify product found for: ${serviceTitle}`);
+          console.log(`[Vagaro Webhook] Ensuring Shopify product exists for: ${serviceTitle}`);
+          const product = await shopifyClient.ensureServiceProduct(
+            serviceTitle, 
+            totalAmount.toString(),
+            [`stylist:${stylist.name}`]
+          );
+          console.log(`[Vagaro Webhook] Using product: ${product.title} (${product.id})`);
+          productTags = product.tags;
+          if (product.variants.length > 0) {
+            variantId = product.variants[0].id;
+            console.log(`[Vagaro Webhook] Using variant: ${variantId}`);
           }
-        } catch (searchError: any) {
-          console.log(`[Vagaro Webhook] Product search error: ${searchError.message}`);
+        } catch (productError: any) {
+          console.log(`[Vagaro Webhook] Product ensure error: ${productError.message}`);
         }
         
         // Combine product tags with default tags

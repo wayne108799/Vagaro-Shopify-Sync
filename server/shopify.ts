@@ -232,6 +232,141 @@ export class ShopifyClient {
     return null;
   }
 
+  async createServiceProduct(title: string, price: string, tags: string[] = []): Promise<ShopifyProduct> {
+    const mutation = `
+      mutation productCreate($input: ProductInput!) {
+        productCreate(input: $input) {
+          product {
+            id
+            title
+            handle
+            tags
+            variants(first: 1) {
+              nodes {
+                id
+                title
+                price
+                inventoryItem {
+                  id
+                }
+              }
+            }
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    // Create a URL-safe handle from the title
+    const handle = title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      + '-service';
+
+    const productTags = ['vagaro-sync', 'service', ...tags];
+
+    const variables = {
+      input: {
+        title: title,
+        handle: handle,
+        productType: "Service",
+        vendor: "Vagaro",
+        tags: productTags,
+        status: "ACTIVE",
+        variants: [{
+          price: price,
+          requiresShipping: false,
+          taxable: false,
+          inventoryPolicy: "CONTINUE",
+          inventoryManagement: null,
+        }],
+      },
+    };
+
+    const result = await this.request("", "POST", { query: mutation, variables });
+
+    if (result.data?.productCreate?.userErrors?.length > 0) {
+      const error = result.data.productCreate.userErrors[0];
+      // If product already exists (handle taken), try to find it
+      if (error.message.includes('handle') || error.message.includes('already')) {
+        console.log(`[Shopify] Product with handle "${handle}" may exist, searching...`);
+        const existing = await this.searchProductByTitle(title);
+        if (existing) {
+          return existing;
+        }
+      }
+      throw new Error(`Shopify product creation failed: ${error.message}`);
+    }
+
+    const product = result.data.productCreate.product;
+    
+    // Disable inventory tracking on the variant's inventory item
+    if (product.variants?.nodes?.[0]?.inventoryItem?.id) {
+      await this.disableInventoryTracking(product.variants.nodes[0].inventoryItem.id);
+    }
+
+    return {
+      id: product.id,
+      title: product.title,
+      handle: product.handle,
+      tags: product.tags || [],
+      variants: (product.variants?.nodes || []).map((v: any) => ({
+        id: v.id,
+        title: v.title || "Default",
+        price: v.price,
+        sku: "",
+      })),
+    };
+  }
+
+  async disableInventoryTracking(inventoryItemId: string): Promise<void> {
+    const mutation = `
+      mutation inventoryItemUpdate($id: ID!, $input: InventoryItemInput!) {
+        inventoryItemUpdate(id: $id, input: $input) {
+          inventoryItem {
+            id
+            tracked
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const variables = {
+      id: inventoryItemId,
+      input: {
+        tracked: false,
+      },
+    };
+
+    try {
+      await this.request("", "POST", { query: mutation, variables });
+      console.log(`[Shopify] Disabled inventory tracking for ${inventoryItemId}`);
+    } catch (error) {
+      console.log(`[Shopify] Could not disable inventory tracking: ${error}`);
+    }
+  }
+
+  async ensureServiceProduct(title: string, price: string, tags: string[] = []): Promise<ShopifyProduct> {
+    // First try to find existing product
+    const existing = await this.searchProductByTitle(title);
+    if (existing) {
+      console.log(`[Shopify] Found existing product: ${existing.title}`);
+      return existing;
+    }
+
+    // Create new service product if not found
+    console.log(`[Shopify] Creating new service product: ${title}`);
+    return await this.createServiceProduct(title, price, tags);
+  }
+
   async searchProductByTitle(title: string): Promise<ShopifyProduct | null> {
     const query = `
       query searchProducts($query: String!) {
