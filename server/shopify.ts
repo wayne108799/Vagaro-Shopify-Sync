@@ -213,23 +213,27 @@ export class ShopifyClient {
   }
 
   async findOrCreateCustomer(name: string, email?: string, phone?: string): Promise<ShopifyCustomer | null> {
+    // Need at least a name to work with
+    if (!name || name.trim() === "") {
+      console.log("[Shopify] No customer name provided, skipping customer lookup/creation");
+      return null;
+    }
+
     // First try to find existing customer
     const existing = await this.searchCustomer(name, phone);
     if (existing) {
+      console.log(`[Shopify] Found existing customer: ${existing.firstName} ${existing.lastName} (${existing.id})`);
       return existing;
     }
 
-    // If not found and we have either email or phone, create new customer
-    if (email || phone) {
-      try {
-        return await this.createCustomer(name, email, phone);
-      } catch (error) {
-        console.log("Could not create customer, proceeding without:", error);
-        return null;
-      }
+    // Create new customer (even with just a name)
+    try {
+      console.log(`[Shopify] Creating new customer: ${name}`);
+      return await this.createCustomer(name, email, phone);
+    } catch (error) {
+      console.log("[Shopify] Could not create customer, proceeding without:", error);
+      return null;
     }
-
-    return null;
   }
 
   async createServiceProduct(title: string, price: string, tags: string[] = []): Promise<ShopifyProduct> {
@@ -531,6 +535,7 @@ export class ShopifyClient {
 
     // Find or create customer in Shopify
     let customerId: string | undefined;
+    console.log(`[Shopify] Draft order customer info: name="${input.customerName}", email="${input.customerEmail}", phone="${input.customerPhone}"`);
     try {
       const customer = await this.findOrCreateCustomer(
         input.customerName,
@@ -539,9 +544,12 @@ export class ShopifyClient {
       );
       if (customer) {
         customerId = customer.id;
+        console.log(`[Shopify] Will attach customer to draft order: ${customerId}`);
+      } else {
+        console.log("[Shopify] No customer to attach to draft order");
       }
     } catch (error) {
-      console.log("Customer lookup/creation failed, proceeding without customer:", error);
+      console.log("[Shopify] Customer lookup/creation failed, proceeding without customer:", error);
     }
 
     // Build line items - set taxable: false for custom items (no variantId)
