@@ -8,7 +8,6 @@ import {
   Button,
   Section,
   Banner,
-  Box,
   useApi,
   reactExtension,
 } from '@shopify/ui-extensions-react/point-of-sale';
@@ -123,7 +122,7 @@ const AppointmentList = () => {
       <Navigator>
         <Screen name="Error" title="Vagaro Appointments">
           <ScrollView>
-            <Stack direction="vertical" spacing="base" padding="base">
+            <Stack direction="vertical" paddingVertical="base">
               <Banner status="critical" title="Error" description={error} />
               <Button title="Retry" onPress={fetchAppointments} />
             </Stack>
@@ -143,24 +142,23 @@ const AppointmentList = () => {
               <Button title="Refresh" onPress={fetchAppointments} />
             </Stack>
           ) : (
-            <Section title={`${appointments.length} Pending Appointments`}>
-              <Stack direction="vertical" spacing="base">
-                {appointments.map((appointment) => (
-                  <Box key={appointment.id} padding="base">
-                    <Stack direction="vertical" spacing="tight">
-                      <Text size="large" emphasized>{appointment.customerName}</Text>
-                      <Text>{appointment.serviceName} - {appointment.stylistName}</Text>
-                      <Text size="large" emphasized>${appointment.amount}</Text>
-                      <Button 
-                        title="Add to Cart" 
-                        onPress={() => addToCart(appointment)}
-                        isDisabled={processing === appointment.id}
-                      />
-                    </Stack>
-                  </Box>
-                ))}
-              </Stack>
-            </Section>
+            <Stack direction="vertical" paddingVertical="base">
+              <Text size="large">{appointments.length} Pending Appointments</Text>
+              {appointments.map((appointment) => (
+                <Section key={appointment.id}>
+                  <Stack direction="vertical">
+                    <Text size="large">{appointment.customerName}</Text>
+                    <Text>{appointment.serviceName}</Text>
+                    <Text>Stylist: {appointment.stylistName}</Text>
+                    <Text size="large">${appointment.amount}</Text>
+                    <Button 
+                      title="Add to Cart" 
+                      onPress={() => addToCart(appointment)}
+                    />
+                  </Stack>
+                </Section>
+              ))}
+            </Stack>
           )}
         </ScrollView>
       </Screen>
