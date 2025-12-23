@@ -10,8 +10,8 @@
     "deploy": "shopify app deploy"
   },
   "dependencies": {
-    "@shopify/shopify-app-remix": "^3.0.0",
-    "@shopify/shopify-api": "^11.0.0"
+    "@shopify/ui-extensions": "2024.10.0",
+    "@shopify/ui-extensions-react": "2024.10.0"
   },
   "devDependencies": {
     "@shopify/cli": "^3.0.0"
