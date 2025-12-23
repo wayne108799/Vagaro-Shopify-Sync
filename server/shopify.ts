@@ -586,13 +586,10 @@ export class ShopifyClient {
       draftOrderInput.reserveInventoryUntil = reserveUntil.toISOString();
     }
 
-    // Attach customer if found/created
+    // Attach customer using email or customer ID (not B2B purchasingEntity)
     if (customerId) {
-      draftOrderInput.purchasingEntity = {
-        customerId: customerId,
-      };
+      draftOrderInput.customerId = customerId;
     } else if (input.customerEmail) {
-      // Fall back to email if no customer ID
       draftOrderInput.email = input.customerEmail;
     }
 
