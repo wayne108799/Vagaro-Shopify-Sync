@@ -1,0 +1,21 @@
+C:\Projects\vagaro-pos-app>shopify app dev
+╭─ info ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                                          │
+│  Using shopify.app.beauty-oasis-stylist.toml for default values:                                                         │
+│                                                                                                                          │
+│    • Org:             Quantum tech                                                                                       │
+│    • App:             Beauty Oasis Stylist                                                                               │
+│    • Dev store:       beauty-oasis-stylist.myshopify.com                                                                 │
+│    • Update URLs:     Yes                                                                                                │
+│                                                                                                                          │
+│   You can pass `--reset` to your command to reset your app configuration.                                                │
+│                                                                                                                          │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+16:40:11 │               app-preview │ Preparing dev preview on beauty-oasis-stylist.myshopify.com
+16:40:12 │                     proxy │ Proxy server started on port 61142
+16:40:12 │                  graphiql │ GraphiQL server started on port 3457
+16:40:12 │       vagaro-appointments │ Build successful
+16:40:12 │               app-preview │ ❌ Error
+16:40:12 │               app-preview │ └  Dependency @shopify/retail-ui-extensions not found
