@@ -594,9 +594,22 @@ export class ShopifyClient {
       draftOrderInput.reserveInventoryUntil = reserveUntil.toISOString();
     }
 
-    // Attach customer using email or customer ID (not B2B purchasingEntity)
+    // Attach customer - use customerId if available, otherwise use inline customer object
     if (customerId) {
       draftOrderInput.customerId = customerId;
+    } else if (input.customerName && input.customerName.trim() !== "") {
+      // Use inline customer object with name details
+      const nameParts = input.customerName.trim().split(/\s+/);
+      const firstName = nameParts[0] || "Customer";
+      const lastName = nameParts.slice(1).join(" ") || "";
+      
+      draftOrderInput.customer = {
+        firstName,
+        lastName,
+        ...(input.customerEmail && { email: input.customerEmail }),
+        ...(input.customerPhone && { phone: input.customerPhone }),
+      };
+      console.log(`[Shopify] Using inline customer object: ${firstName} ${lastName}`);
     } else if (input.customerEmail) {
       draftOrderInput.email = input.customerEmail;
     }
