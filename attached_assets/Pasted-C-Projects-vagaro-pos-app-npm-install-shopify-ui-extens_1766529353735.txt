@@ -1,0 +1,33 @@
+C:\Projects\vagaro-pos-app>npm install @shopify/ui-extensions @shopify/ui-extensions-react
+
+added 12 packages, and audited 85 packages in 7s
+
+11 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+
+C:\Projects\vagaro-pos-app>shopify app dev
+╭─ info ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                                          │
+│  Using shopify.app.beauty-oasos-stylist.toml for default values:                                                         │
+│                                                                                                                          │
+│    • Org:             Quantum tech                                                                                       │
+│    • App:             Beauty Oasos Stylist                                                                               │
+│    • Dev store:       beauty-oasis-stylist.myshopify.com                                                                 │
+│    • Update URLs:     Yes                                                                                                │
+│                                                                                                                          │
+│   You can pass `--reset` to your command to reset your app configuration.                                                │
+│                                                                                                                          │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+
+15:35:13 │               app-preview │ Preparing dev preview on beauty-oasis-stylist.myshopify.com
+15:35:13 │                     proxy │ Proxy server started on port 59609
+15:35:13 │                  graphiql │ GraphiQL server started on port 3457
+15:35:14 │       vagaro-appointments │ Build successful
+15:35:14 │               app-preview │ ❌ Error
+15:35:14 │               app-preview │ └  Dependency @shopify/retail-ui-extensions not found
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+│ (d) Dev status │ (a) App info │ (s) Store info │                                                                                                              (q) Quit
