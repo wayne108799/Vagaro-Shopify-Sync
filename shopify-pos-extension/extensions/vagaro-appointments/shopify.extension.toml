@@ -1,7 +1,7 @@
-api_version = "2025-01"
+api_version = "2024-10"
 
 [[extensions]]
-type = "ui_extension"
+type = "pos_ui_extension"
 name = "Vagaro Appointments"
 handle = "vagaro-appointments"
 description = "View and checkout Vagaro appointments in POS"
