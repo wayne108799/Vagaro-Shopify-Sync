@@ -6,10 +6,9 @@ import {
   Stack,
   Text,
   Button,
-  List,
-  ListRow,
   Section,
   Banner,
+  Box,
   useApi,
   reactExtension,
 } from '@shopify/ui-extensions-react/point-of-sale';
@@ -144,22 +143,23 @@ const AppointmentList = () => {
               <Button title="Refresh" onPress={fetchAppointments} />
             </Stack>
           ) : (
-            <Section title={`${appointments.length} Pending`}>
-              <List>
+            <Section title={`${appointments.length} Pending Appointments`}>
+              <Stack direction="vertical" spacing="base">
                 {appointments.map((appointment) => (
-                  <ListRow
-                    key={appointment.id}
-                    title={appointment.customerName}
-                    subtitle={`${appointment.serviceName} - ${appointment.stylistName}`}
-                    rightSide={{
-                      label: `$${appointment.amount}`,
-                      showChevron: false,
-                    }}
-                    onPress={() => addToCart(appointment)}
-                    disabled={processing === appointment.id}
-                  />
+                  <Box key={appointment.id} padding="base">
+                    <Stack direction="vertical" spacing="tight">
+                      <Text size="large" emphasized>{appointment.customerName}</Text>
+                      <Text>{appointment.serviceName} - {appointment.stylistName}</Text>
+                      <Text size="large" emphasized>${appointment.amount}</Text>
+                      <Button 
+                        title="Add to Cart" 
+                        onPress={() => addToCart(appointment)}
+                        isDisabled={processing === appointment.id}
+                      />
+                    </Stack>
+                  </Box>
                 ))}
-              </List>
+              </Stack>
             </Section>
           )}
         </ScrollView>
