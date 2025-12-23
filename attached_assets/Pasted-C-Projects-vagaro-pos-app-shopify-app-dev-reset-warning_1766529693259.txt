@@ -1,0 +1,19 @@
+C:\Projects\vagaro-pos-app>shopify app dev --reset
+╭─ warning ────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                                          │
+│  Couldn't find shopify.app.beauty-oasos-stylist.toml                                                                     │
+│                                                                                                                          │
+│  If you have multiple config files, select a new one. If you only have one config file, it's been selected as your       │
+│  default.                                                                                                                │
+│                                                                                                                          │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+╭─ error ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                                          │
+│                                                                                                                          │
+│  Validation errors in shopify.app.toml:                                                                                  │
+│                                                                                                                          │
+│  • [embedded]: Boolean is required                                                                                       │
+│                                                                                                                          │
+│                                                                                                                          │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

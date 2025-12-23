@@ -4,6 +4,7 @@
 name = "Vagaro POS Sync"
 client_id = "YOUR_CLIENT_ID"
 application_url = "https://YOUR_REPLIT_URL"
+embedded = true
 
 [access_scopes]
 scopes = "read_orders,write_orders,read_draft_orders,write_draft_orders,read_products,read_customers"
