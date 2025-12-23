@@ -1,0 +1,21 @@
+{
+  "name": "vagaro-pos-extension",
+  "version": "1.0.0",
+  "description": "Shopify POS Extension for Vagaro Appointment Sync",
+  "scripts": {
+    "shopify": "shopify",
+    "build": "shopify app build",
+    "dev": "shopify app dev",
+    "info": "shopify app info",
+    "deploy": "shopify app deploy"
+  },
+  "dependencies": {
+    "@shopify/shopify-app-remix": "^3.0.0",
+    "@shopify/shopify-api": "^11.0.0"
+  },
+  "devDependencies": {
+    "@shopify/cli": "^3.0.0"
+  },
+  "author": "",
+  "license": "ISC"
+}

@@ -353,12 +353,12 @@ export async function registerRoutes(
       // Create draft order in Shopify with product matching
       let shopifyDraftOrderId: string | undefined;
       let productTags: string[] = [];
+      let variantId: string | undefined;
       
       if (settings.shopifyStoreUrl && settings.shopifyAccessToken) {
         const shopifyClient = new ShopifyClient(settings);
         
         // Find or create Shopify product for the service
-        let variantId: string | undefined;
         try {
           console.log(`[Vagaro Webhook] Ensuring Shopify product exists for: ${serviceTitle}`);
           const product = await shopifyClient.ensureServiceProduct(
@@ -407,14 +407,18 @@ export async function registerRoutes(
       const order = await storage.createOrder({
         vagaroAppointmentId: appointmentId,
         shopifyDraftOrderId: shopifyDraftOrderId,
+        shopifyProductVariantId: variantId || null,
         stylistId: stylist.id,
+        stylistName: stylist.name,
         customerName: customerName,
         customerEmail: customerEmail,
+        serviceName: serviceTitle,
         services: [serviceTitle],
         totalAmount: totalAmount.toFixed(2),
         tipAmount: "0",
         commissionAmount: commissionAmount.toFixed(2),
         status: "draft",
+        appointmentDate: new Date(),
       });
 
       console.log(`[Vagaro Webhook] Order created: ${order.id}`);
@@ -833,10 +837,13 @@ export async function registerRoutes(
       const commissionRate = await storage.getApplicableCommissionRate(stylistId, totalSales);
       const commissionAmount = (parseFloat(totalAmount) * commissionRate) / 100;
       
+      const stylistData = await storage.getStylist(stylistId);
       const order = await storage.createOrder({
         stylistId,
+        stylistName: stylistData?.name || null,
         customerName,
         customerEmail: null,
+        serviceName: services?.[0] || "Manual Sale",
         services: services || ["Manual Sale"],
         totalAmount: parseFloat(totalAmount).toFixed(2),
         tipAmount: parseFloat(tipAmount || "0").toFixed(2),
@@ -1036,6 +1043,102 @@ export async function registerRoutes(
       }
       res.json({ id: user.id, username: user.username });
     } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ========================================
+  // POS Extension API Endpoints
+  // ========================================
+  
+  // CORS middleware for POS endpoints
+  const posCorsMW = (req: Request, res: Response, next: NextFunction) => {
+    // Get allowed origins from settings or use default
+    const allowedOrigins = [
+      'https://pos.shopify.com',
+      'https://admin.shopify.com',
+      process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : '',
+    ].filter(Boolean);
+    
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.some(allowed => origin.includes('shopify') || origin === allowed)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    next();
+  };
+  
+  // Handle CORS preflight for all POS endpoints
+  app.options("/api/pos/*", posCorsMW, (_req, res) => {
+    res.status(204).end();
+  });
+  
+  // Basic token validation for POS endpoints
+  const validatePosToken = async (req: Request, res: Response, next: NextFunction) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log("[POS API] Missing or invalid authorization header");
+      return res.status(401).json({ error: "Authorization required" });
+    }
+    
+    const token = authHeader.substring(7);
+    if (!token || token.length < 10) {
+      console.log("[POS API] Invalid token format");
+      return res.status(401).json({ error: "Invalid token" });
+    }
+    
+    next();
+  };
+  
+  // Get pending appointments for POS extension
+  app.get("/api/pos/pending-appointments", posCorsMW, validatePosToken, async (_req, res) => {
+    try {
+      // Get all orders that are synced but not yet paid (draft orders)
+      const allOrders = await storage.getOrders();
+      const allStylists = await storage.getStylists();
+      const stylistMap = new Map(allStylists.map(s => [s.id, s.name]));
+      
+      const pendingAppointments = allOrders
+        .filter(order => order.shopifyDraftOrderId && order.status === 'draft')
+        .map(order => ({
+          id: order.id,
+          customerName: order.customerName,
+          serviceName: order.serviceName || order.services?.[0] || 'Service',
+          stylistName: order.stylistName || stylistMap.get(order.stylistId) || 'Unknown',
+          amount: order.totalAmount,
+          date: order.appointmentDate || order.createdAt,
+          shopifyDraftOrderId: order.shopifyDraftOrderId,
+          shopifyProductVariantId: order.shopifyProductVariantId || null,
+        }));
+      
+      res.json({ appointments: pendingAppointments });
+    } catch (error: any) {
+      console.error("[POS API] Error fetching appointments:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Mark appointment as loaded to cart (for tracking)
+  app.post("/api/pos/mark-loaded/:id", posCorsMW, validatePosToken, async (req, res) => {
+    try {
+      const orderId = req.params.id;
+      // Update order to mark it as loaded to POS cart
+      const order = await storage.updateOrder(orderId, { 
+        status: 'pending_checkout' 
+      });
+      
+      if (!order) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      
+      console.log(`[POS API] Marked order ${orderId} as loaded to cart`);
+      res.json({ success: true, order });
+    } catch (error: any) {
+      console.error("[POS API] Error marking order:", error);
       res.status(500).json({ error: error.message });
     }
   });

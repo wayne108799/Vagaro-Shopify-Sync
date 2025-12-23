@@ -53,7 +53,22 @@ Database tables:
 - **Shopify Admin API**: GraphQL API (2024-10) for creating draft orders with product matching
   - Searches for matching Shopify products by service name
   - Uses product variant IDs and tags when a match is found
-  - Draft orders appear in Shopify POS for checkout
+  - Auto-creates customers in Shopify if not found
+  - Auto-creates service products with "vagaro-sync" and "service" tags
+
+### Shopify POS Extension
+A separate Shopify app with POS UI extension is included in `shopify-pos-extension/`:
+- **Purpose**: Displays Vagaro appointments directly in Shopify POS Smart Grid
+- **Tile**: Shows count of pending appointments, refreshes every 30 seconds
+- **Modal**: Lists appointments with customer name, service, stylist, and amount
+- **Cart Integration**: Tap to add appointment directly to POS cart for checkout
+- **Backend API**: Uses `/api/pos/pending-appointments` and `/api/pos/mark-loaded/:id` endpoints
+
+To deploy the POS extension:
+1. Copy `shopify-pos-extension/` folder to a separate project
+2. Update `BACKEND_URL` in extension source files to your deployed Replit URL
+3. Configure `shopify.app.toml` with your Partner app credentials
+4. Run `npm run shopify app dev` to test, `npm run shopify app deploy` to publish
 
 ### Authentication
 - Admin dashboard: Session-based (no current auth implementation visible)

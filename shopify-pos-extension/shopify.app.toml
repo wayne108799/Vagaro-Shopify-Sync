@@ -1,0 +1,18 @@
+# Shopify App Configuration
+# Learn more: https://shopify.dev/docs/apps/tools/cli/configuration
+
+name = "Vagaro POS Sync"
+client_id = "YOUR_CLIENT_ID"
+application_url = "https://YOUR_REPLIT_URL"
+
+[access_scopes]
+scopes = "read_orders,write_orders,read_draft_orders,write_draft_orders,read_products,read_customers"
+
+[auth]
+redirect_urls = ["https://YOUR_REPLIT_URL/api/auth/callback"]
+
+[webhooks]
+api_version = "2024-10"
+
+[pos]
+embedded = true
