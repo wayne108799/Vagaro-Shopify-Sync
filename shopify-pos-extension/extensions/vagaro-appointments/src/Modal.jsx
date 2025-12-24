@@ -1,11 +1,10 @@
-/** @jsxImportSource preact */
-import { render, h } from 'preact';
+import { render } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 
 const BACKEND_URL = 'https://your-replit-url.replit.app';
 
 export default async () => {
-  render(h(Extension, null), document.body);
+  render(<Extension />, document.body);
 };
 
 function Extension() {
@@ -75,53 +74,57 @@ function Extension() {
   }
 
   if (isLoading) {
-    return h('s-page', { heading: 'Vagaro Appointments' },
-      h('s-scroll-box', null,
-        h('s-box', { padding: 'base' },
-          h('s-text', null, 'Loading appointments...')
-        )
-      )
+    return (
+      <s-page heading="Vagaro Appointments">
+        <s-scroll-box>
+          <s-box padding="base">
+            <s-text>Loading appointments...</s-text>
+          </s-box>
+        </s-scroll-box>
+      </s-page>
     );
   }
 
   if (error) {
-    return h('s-page', { heading: 'Vagaro Appointments' },
-      h('s-scroll-box', null,
-        h('s-box', { padding: 'base' },
-          h('s-banner', { status: 'critical', title: 'Error' }, error),
-          h('s-button', { onClick: fetchAppointments }, 'Retry')
-        )
-      )
+    return (
+      <s-page heading="Vagaro Appointments">
+        <s-scroll-box>
+          <s-box padding="base">
+            <s-banner status="critical" title="Error">
+              {error}
+            </s-banner>
+            <s-button onClick={fetchAppointments}>Retry</s-button>
+          </s-box>
+        </s-scroll-box>
+      </s-page>
     );
   }
 
-  if (appointments.length === 0) {
-    return h('s-page', { heading: 'Vagaro Appointments' },
-      h('s-scroll-box', null,
-        h('s-box', { padding: 'base' },
-          h('s-text', null, 'No pending appointments'),
-          h('s-button', { onClick: fetchAppointments }, 'Refresh')
-        )
-      )
-    );
-  }
-
-  return h('s-page', { heading: 'Vagaro Appointments' },
-    h('s-scroll-box', null,
-      h('s-box', { padding: 'base' },
-        h('s-text', { variant: 'headingLarge' }, `${appointments.length} Pending`),
-        ...appointments.map((apt) =>
-          h('s-card', { key: apt.id },
-            h('s-box', { padding: 'base' },
-              h('s-text', { variant: 'headingMedium' }, apt.customerName),
-              h('s-text', null, apt.serviceName),
-              h('s-text', null, `Stylist: ${apt.stylistName}`),
-              h('s-text', { variant: 'headingLarge' }, `$${apt.amount}`),
-              h('s-button', { onClick: () => addToCart(apt) }, 'Add to Cart')
-            )
-          )
-        )
-      )
-    )
+  return (
+    <s-page heading="Vagaro Appointments">
+      <s-scroll-box>
+        {appointments.length === 0 ? (
+          <s-box padding="base">
+            <s-text>No pending appointments</s-text>
+            <s-button onClick={fetchAppointments}>Refresh</s-button>
+          </s-box>
+        ) : (
+          <s-box padding="base">
+            <s-text variant="headingLarge">{appointments.length} Pending</s-text>
+            {appointments.map((apt) => (
+              <s-card key={apt.id}>
+                <s-box padding="base">
+                  <s-text variant="headingMedium">{apt.customerName}</s-text>
+                  <s-text>{apt.serviceName}</s-text>
+                  <s-text>Stylist: {apt.stylistName}</s-text>
+                  <s-text variant="headingLarge">${apt.amount}</s-text>
+                  <s-button onClick={() => addToCart(apt)}>Add to Cart</s-button>
+                </s-box>
+              </s-card>
+            ))}
+          </s-box>
+        )}
+      </s-scroll-box>
+    </s-page>
   );
 }

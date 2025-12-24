@@ -1,0 +1,35 @@
+12:52:39 │               app-preview │ Preparing dev preview on beauty-oasis-stylist.myshopify.com
+12:52:39 │                     proxy │ Proxy server started on port 49481
+12:52:39 │                  graphiql │ GraphiQL server started on port 3457
+12:52:40 │       vagaro-appointments │ X [ERROR] Could not resolve "preact"
+12:52:40 │       vagaro-appointments │
+12:52:40 │       vagaro-appointments │     extensions/vagaro-appointments/src/Modal.jsx:2:26:
+12:52:40 │       vagaro-appointments │       2 │ import { render, h } from 'preact';
+12:52:40 │       vagaro-appointments │         ╵                           ~~~~~~~~
+12:52:40 │       vagaro-appointments │
+12:52:40 │       vagaro-appointments │   You can mark the path "preact" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the
+bundle.
+12:52:40 │       vagaro-appointments │
+12:52:40 │       vagaro-appointments │ X [ERROR] Could not resolve "preact/hooks"
+12:52:40 │       vagaro-appointments │
+12:52:40 │       vagaro-appointments │     extensions/vagaro-appointments/src/Modal.jsx:3:36:
+12:52:40 │       vagaro-appointments │       3 │ import { useState, useEffect } from 'preact/hooks';
+12:52:40 │       vagaro-appointments │         ╵                                     ~~~~~~~~~~~~~~
+12:52:40 │       vagaro-appointments │
+12:52:40 │       vagaro-appointments │   You can mark the path "preact/hooks" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the
+bundle.
+12:52:40 │       vagaro-appointments │
+12:52:40 │       vagaro-appointments │ X [ERROR] Could not resolve "preact"
+12:52:40 │       vagaro-appointments │
+12:52:40 │       vagaro-appointments │     extensions/vagaro-appointments/src/Tile.jsx:2:26:
+12:52:40 │       vagaro-appointments │       2 │ import { render, h } from 'preact';
+12:52:40 │       vagaro-appointments │         ╵                           ~~~~~~~~
+12:52:40 │       vagaro-appointments │
+12:52:40 │       vagaro-appointments │   You can mark the path "preact" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in the
+bundle.
+12:52:40 │       vagaro-appointments │
+12:52:40 │               app-preview │ ❌ Error
+12:52:40 │       vagaro-appointments │ └  Build error. Please review your code and try again.
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+│ (d) Dev status │ (a) App info │ (s) Store info │                                                                                                              (q) Quit

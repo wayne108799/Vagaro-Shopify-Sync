@@ -1,14 +1,15 @@
-/** @jsxImportSource preact */
-import { render, h } from 'preact';
+import { render } from 'preact';
 
 export default async () => {
-  render(h(Extension, null), document.body);
+  render(<Extension />, document.body);
 }
 
 function Extension() {
-  return h('s-tile', {
-    heading: 'Vagaro Appointments',
-    subheading: 'View pending appointments',
-    onClick: () => shopify.action.presentModal()
-  });
+  return (
+    <s-tile
+      heading="Vagaro Appointments"
+      subheading="View pending appointments"
+      onClick={() => shopify.action.presentModal()}
+    />
+  );
 }
