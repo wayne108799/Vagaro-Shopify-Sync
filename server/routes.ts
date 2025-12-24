@@ -1097,7 +1097,8 @@ export async function registerRoutes(
   // Get pending appointments for POS extension (no auth required for POS extensions)
   app.get("/api/pos/pending-appointments", posCorsMW, async (req, res) => {
     try {
-      console.log("[POS API] Fetching pending appointments");
+      const shopifyStaffId = req.query.staffId as string | undefined;
+      console.log(`[POS API] Fetching pending appointments for staff: ${shopifyStaffId || 'all'}`);
       
       // Filter by today's date by default, or use query param
       const today = new Date();
@@ -1111,16 +1112,30 @@ export async function registerRoutes(
       const endOfDay = new Date(filterDate);
       endOfDay.setHours(23, 59, 59, 999);
       
-      // Get orders for today that are synced but not yet paid (draft orders)
-      const allOrders = await storage.getOrders({ fromDate: filterDate });
+      // Check if this staff member is a linked stylist
       const allStylists = await storage.getStylists();
+      const linkedStylist = shopifyStaffId 
+        ? allStylists.find(s => s.shopifyStaffId === shopifyStaffId)
+        : null;
+      
       const stylistMap = new Map(allStylists.map(s => [s.id, s.name]));
+      
+      // Get orders for today
+      const allOrders = await storage.getOrders({ fromDate: filterDate });
       
       const pendingAppointments = allOrders
         .filter(order => {
           const orderDate = order.appointmentDate || order.createdAt;
           const isToday = orderDate && orderDate >= filterDate && orderDate <= endOfDay;
-          return order.status === 'draft' && isToday;
+          const isDraft = order.status === 'draft';
+          
+          // If staff is a linked stylist, only show their appointments
+          // If staff is not linked (manager/owner), show all appointments
+          const matchesStylist = linkedStylist 
+            ? order.stylistId === linkedStylist.id 
+            : true;
+          
+          return isDraft && isToday && matchesStylist;
         })
         .map(order => ({
           id: order.id,
@@ -1134,10 +1149,12 @@ export async function registerRoutes(
           shopifyProductVariantId: order.shopifyProductVariantId || null,
         }));
       
-      console.log(`[POS API] Found ${pendingAppointments.length} pending appointments for ${filterDate.toDateString()}`);
+      console.log(`[POS API] Found ${pendingAppointments.length} pending appointments for ${filterDate.toDateString()} (stylist: ${linkedStylist?.name || 'all'})`);
       res.json({ 
         appointments: pendingAppointments,
-        date: filterDate.toISOString().split('T')[0]
+        date: filterDate.toISOString().split('T')[0],
+        viewMode: linkedStylist ? 'stylist' : 'manager',
+        stylistName: linkedStylist?.name || null
       });
     } catch (error: any) {
       console.error("[POS API] Error fetching appointments:", error);

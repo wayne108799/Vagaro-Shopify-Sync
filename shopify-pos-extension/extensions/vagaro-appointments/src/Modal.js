@@ -11,6 +11,8 @@ function Extension() {
   const [isLoading, setIsLoading] = useState(true);
   const [appointments, setAppointments] = useState([]);
   const [error, setError] = useState(null);
+  const [viewMode, setViewMode] = useState(null);
+  const [stylistName, setStylistName] = useState(null);
 
   useEffect(() => {
     fetchAppointments();
@@ -19,7 +21,12 @@ function Extension() {
   async function fetchAppointments() {
     try {
       setIsLoading(true);
-      const response = await fetch(BACKEND_URL + '/api/pos/pending-appointments', {
+      
+      // Get current staff member
+      var staff = await shopify.staff.current();
+      var staffParam = staff && staff.id ? '?staffId=' + staff.id : '';
+      
+      const response = await fetch(BACKEND_URL + '/api/pos/pending-appointments' + staffParam, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -27,6 +34,8 @@ function Extension() {
       if (!response.ok) throw new Error('Failed to fetch');
       const data = await response.json();
       setAppointments(data.appointments || []);
+      setViewMode(data.viewMode || 'manager');
+      setStylistName(data.stylistName || null);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -87,8 +96,12 @@ function Extension() {
     );
   }
 
+  var pageTitle = viewMode === 'stylist' && stylistName 
+    ? stylistName + "'s Appointments" 
+    : "Today's Appointments";
+
   if (appointments.length === 0) {
-    return h('s-page', { heading: 'Vagaro Appointments' },
+    return h('s-page', { heading: pageTitle },
       h('s-scroll-box', null,
         h('s-box', { padding: 'base' },
           h('s-text', null, 'No pending appointments'),
@@ -103,14 +116,14 @@ function Extension() {
       h('s-box', { padding: 'base' },
         h('s-text', { variant: 'headingMedium' }, apt.customerName),
         h('s-text', null, apt.serviceName),
-        h('s-text', null, 'Stylist: ' + apt.stylistName),
+        viewMode === 'manager' ? h('s-text', null, 'Stylist: ' + apt.stylistName) : null,
         h('s-text', { variant: 'headingLarge' }, '$' + apt.amount),
         h('s-button', { onClick: function() { addToCart(apt); } }, 'Add to Cart')
       )
     );
   });
 
-  return h('s-page', { heading: 'Vagaro Appointments' },
+  return h('s-page', { heading: pageTitle },
     h('s-scroll-box', null,
       h('s-box', { padding: 'base' },
         h('s-text', { variant: 'headingLarge' }, appointments.length + ' Pending'),
