@@ -1095,16 +1095,33 @@ export async function registerRoutes(
   };
   
   // Get pending appointments for POS extension (no auth required for POS extensions)
-  app.get("/api/pos/pending-appointments", posCorsMW, async (_req, res) => {
+  app.get("/api/pos/pending-appointments", posCorsMW, async (req, res) => {
     try {
       console.log("[POS API] Fetching pending appointments");
-      // Get all orders that are synced but not yet paid (draft orders)
-      const allOrders = await storage.getOrders();
+      
+      // Filter by today's date by default, or use query param
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const filterDate = req.query.date 
+        ? new Date(req.query.date as string) 
+        : today;
+      filterDate.setHours(0, 0, 0, 0);
+      
+      const endOfDay = new Date(filterDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      
+      // Get orders for today that are synced but not yet paid (draft orders)
+      const allOrders = await storage.getOrders({ fromDate: filterDate });
       const allStylists = await storage.getStylists();
       const stylistMap = new Map(allStylists.map(s => [s.id, s.name]));
       
       const pendingAppointments = allOrders
-        .filter(order => order.shopifyDraftOrderId && order.status === 'draft')
+        .filter(order => {
+          const orderDate = order.appointmentDate || order.createdAt;
+          const isToday = orderDate && orderDate >= filterDate && orderDate <= endOfDay;
+          return order.status === 'draft' && isToday;
+        })
         .map(order => ({
           id: order.id,
           customerName: order.customerName,
@@ -1117,8 +1134,11 @@ export async function registerRoutes(
           shopifyProductVariantId: order.shopifyProductVariantId || null,
         }));
       
-      console.log(`[POS API] Found ${pendingAppointments.length} pending appointments`);
-      res.json({ appointments: pendingAppointments });
+      console.log(`[POS API] Found ${pendingAppointments.length} pending appointments for ${filterDate.toDateString()}`);
+      res.json({ 
+        appointments: pendingAppointments,
+        date: filterDate.toISOString().split('T')[0]
+      });
     } catch (error: any) {
       console.error("[POS API] Error fetching appointments:", error);
       res.status(500).json({ error: error.message });
