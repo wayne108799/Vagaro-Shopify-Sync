@@ -13,3 +13,17 @@ target = "pos.home.tile.render"
 [[extensions.targeting]]
 module = "./src/Modal.js"
 target = "pos.home.modal.render"
+
+[[extensions]]
+type = "ui_extension"
+name = "My Earnings"
+handle = "stylist-earnings"
+description = "View your personal earnings, commissions, and tips"
+
+[[extensions.targeting]]
+module = "./src/StylistTile.js"
+target = "pos.home.tile.render"
+
+[[extensions.targeting]]
+module = "./src/StylistModal.js"
+target = "pos.home.modal.render"

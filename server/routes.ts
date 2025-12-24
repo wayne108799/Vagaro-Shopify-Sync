@@ -1094,9 +1094,10 @@ export async function registerRoutes(
     next();
   };
   
-  // Get pending appointments for POS extension
-  app.get("/api/pos/pending-appointments", posCorsMW, validatePosToken, async (_req, res) => {
+  // Get pending appointments for POS extension (no auth required for POS extensions)
+  app.get("/api/pos/pending-appointments", posCorsMW, async (_req, res) => {
     try {
+      console.log("[POS API] Fetching pending appointments");
       // Get all orders that are synced but not yet paid (draft orders)
       const allOrders = await storage.getOrders();
       const allStylists = await storage.getStylists();
@@ -1109,12 +1110,14 @@ export async function registerRoutes(
           customerName: order.customerName,
           serviceName: order.serviceName || order.services?.[0] || 'Service',
           stylistName: order.stylistName || stylistMap.get(order.stylistId) || 'Unknown',
+          stylistId: order.stylistId,
           amount: order.totalAmount,
           date: order.appointmentDate || order.createdAt,
           shopifyDraftOrderId: order.shopifyDraftOrderId,
           shopifyProductVariantId: order.shopifyProductVariantId || null,
         }));
       
+      console.log(`[POS API] Found ${pendingAppointments.length} pending appointments`);
       res.json({ appointments: pendingAppointments });
     } catch (error: any) {
       console.error("[POS API] Error fetching appointments:", error);
@@ -1123,7 +1126,7 @@ export async function registerRoutes(
   });
   
   // Mark appointment as loaded to cart (for tracking)
-  app.post("/api/pos/mark-loaded/:id", posCorsMW, validatePosToken, async (req, res) => {
+  app.post("/api/pos/mark-loaded/:id", posCorsMW, async (req, res) => {
     try {
       const orderId = req.params.id;
       // Update order to mark it as loaded to POS cart
@@ -1139,6 +1142,137 @@ export async function registerRoutes(
       res.json({ success: true, order });
     } catch (error: any) {
       console.error("[POS API] Error marking order:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Get stylist summary by Shopify staff ID for POS extension
+  app.get("/api/pos/stylist-summary", posCorsMW, async (req, res) => {
+    try {
+      const shopifyStaffId = req.query.staffId as string;
+      console.log(`[POS API] Fetching stylist summary for staff ID: ${shopifyStaffId}`);
+      
+      if (!shopifyStaffId) {
+        return res.status(400).json({ error: "staffId query parameter required" });
+      }
+      
+      // Find stylist by Shopify staff ID
+      const allStylists = await storage.getStylists();
+      const stylist = allStylists.find(s => s.shopifyStaffId === shopifyStaffId);
+      
+      if (!stylist) {
+        console.log(`[POS API] No stylist found for staff ID: ${shopifyStaffId}`);
+        return res.json({ 
+          found: false,
+          message: "Stylist not linked to this POS account",
+          availableStylists: allStylists.filter(s => s.enabled).map(s => ({
+            id: s.id,
+            name: s.name,
+            hasShopifyLink: !!s.shopifyStaffId
+          }))
+        });
+      }
+      
+      // Get today's stats
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayStr = today.toISOString().split('T')[0];
+      
+      // Get current pay period
+      const payPeriod = getPayPeriod(new Date());
+      
+      // Get today's orders for this stylist
+      const todayOrders = await storage.getOrders({
+        stylistId: stylist.id,
+        fromDate: today
+      });
+      
+      const paidToday = todayOrders.filter(o => o.status === 'paid' && !o.voidedAt);
+      const pendingToday = todayOrders.filter(o => o.status === 'draft');
+      
+      // Calculate today's earnings
+      const todaySales = paidToday.reduce((sum, o) => sum + parseFloat(o.totalAmount), 0);
+      const todayTips = paidToday.reduce((sum, o) => sum + parseFloat(o.tipAmount), 0);
+      const todayCommission = paidToday.reduce((sum, o) => sum + parseFloat(o.commissionAmount), 0);
+      
+      // Get pay period stats
+      const periodOrders = await storage.getOrdersForPeriod(payPeriod.start, payPeriod.end, stylist.id, false);
+      const periodSales = periodOrders.reduce((sum, o) => sum + parseFloat(o.totalAmount), 0);
+      const periodTips = periodOrders.reduce((sum, o) => sum + parseFloat(o.tipAmount), 0);
+      const periodCommission = periodOrders.reduce((sum, o) => sum + parseFloat(o.commissionAmount), 0);
+      
+      // Get hours worked this period
+      const periodHours = await storage.getPayPeriodHours(stylist.id, payPeriod.start, payPeriod.end);
+      const hourlyEarnings = periodHours * parseFloat(stylist.hourlyRate || "0");
+      
+      // Get current commission rate
+      const commissionRate = await storage.getApplicableCommissionRate(stylist.id, periodSales);
+      
+      // Get open time entry (is clocked in?)
+      const openTimeEntry = await storage.getOpenTimeEntry(stylist.id);
+      
+      res.json({
+        found: true,
+        stylist: {
+          id: stylist.id,
+          name: stylist.name,
+          role: stylist.role,
+          commissionRate: commissionRate,
+          hourlyRate: stylist.hourlyRate,
+          isClockedIn: !!openTimeEntry,
+          clockInTime: openTimeEntry?.clockIn || null
+        },
+        today: {
+          sales: todaySales.toFixed(2),
+          tips: todayTips.toFixed(2),
+          commission: todayCommission.toFixed(2),
+          totalEarnings: (todayCommission + todayTips).toFixed(2),
+          paidOrders: paidToday.length,
+          pendingOrders: pendingToday.length
+        },
+        payPeriod: {
+          start: payPeriod.start,
+          end: payPeriod.end,
+          sales: periodSales.toFixed(2),
+          tips: periodTips.toFixed(2),
+          commission: periodCommission.toFixed(2),
+          hourlyEarnings: hourlyEarnings.toFixed(2),
+          hoursWorked: periodHours,
+          totalEarnings: (periodCommission + periodTips + hourlyEarnings).toFixed(2),
+          orderCount: periodOrders.length
+        },
+        pendingAppointments: pendingToday.map(o => ({
+          id: o.id,
+          customerName: o.customerName,
+          serviceName: o.serviceName || o.services?.[0] || 'Service',
+          amount: o.totalAmount,
+          shopifyProductVariantId: o.shopifyProductVariantId
+        }))
+      });
+    } catch (error: any) {
+      console.error("[POS API] Error fetching stylist summary:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // Link stylist to Shopify staff ID
+  app.post("/api/pos/link-stylist", posCorsMW, async (req, res) => {
+    try {
+      const { stylistId, shopifyStaffId } = req.body;
+      
+      if (!stylistId || !shopifyStaffId) {
+        return res.status(400).json({ error: "stylistId and shopifyStaffId required" });
+      }
+      
+      const stylist = await storage.updateStylist(stylistId, { shopifyStaffId });
+      if (!stylist) {
+        return res.status(404).json({ error: "Stylist not found" });
+      }
+      
+      console.log(`[POS API] Linked stylist ${stylist.name} to Shopify staff ID ${shopifyStaffId}`);
+      res.json({ success: true, stylist: { id: stylist.id, name: stylist.name } });
+    } catch (error: any) {
+      console.error("[POS API] Error linking stylist:", error);
       res.status(500).json({ error: error.message });
     }
   });
