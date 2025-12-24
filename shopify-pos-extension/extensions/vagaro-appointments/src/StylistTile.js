@@ -1,7 +1,7 @@
 import { render, h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 
-const BACKEND_URL = 'https://your-replit-url.replit.app';
+const BACKEND_URL = 'https://Beautyoasisadmin.replit.app';
 
 export default async () => {
   render(h(Extension), document.body);
