@@ -20,7 +20,15 @@ function Extension() {
 
   async function fetchSummary() {
     try {
-      var staff = await shopify.staff.current();
+      var staff = null;
+      try {
+        if (typeof shopify !== 'undefined' && shopify.staff && shopify.staff.current) {
+          staff = await shopify.staff.current();
+        }
+      } catch (staffErr) {
+        console.log('Could not get staff info:', staffErr);
+      }
+      
       if (!staff || !staff.id) {
         setSummary({ found: false, message: 'Not signed in' });
         setLoading(false);

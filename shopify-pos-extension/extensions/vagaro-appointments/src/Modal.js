@@ -22,9 +22,18 @@ function Extension() {
     try {
       setIsLoading(true);
       
-      // Get current staff member
-      var staff = await shopify.staff.current();
-      var staffParam = staff && staff.id ? '?staffId=' + staff.id : '';
+      // Try to get current staff member, but don't fail if unavailable
+      var staffParam = '';
+      try {
+        if (typeof shopify !== 'undefined' && shopify.staff && shopify.staff.current) {
+          var staff = await shopify.staff.current();
+          if (staff && staff.id) {
+            staffParam = '?staffId=' + staff.id;
+          }
+        }
+      } catch (staffErr) {
+        console.log('Could not get staff info:', staffErr);
+      }
       
       const response = await fetch(BACKEND_URL + '/api/pos/pending-appointments' + staffParam, {
         method: 'GET',
