@@ -1,0 +1,26 @@
+12:22:33 │               app-preview │ Preparing dev preview on beauty-oasis-stylist.myshopify.com
+12:22:33 │                     proxy │ Proxy server started on port 63749
+12:22:33 │                  graphiql │ GraphiQL server started on port 3457
+12:22:33 │       vagaro-appointments │ X [ERROR] Could not resolve "react/jsx-runtime"
+12:22:33 │       vagaro-appointments │
+12:22:33 │       vagaro-appointments │     extensions/vagaro-appointments/src/Modal.jsx:7:9:
+12:22:33 │       vagaro-appointments │       7 │   render(<Extension />, document.body);
+12:22:33 │       vagaro-appointments │         ╵          ^
+12:22:33 │       vagaro-appointments │
+12:22:33 │       vagaro-appointments │   You can mark the path "react/jsx-runtime" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in
+ the bundle.
+12:22:33 │       vagaro-appointments │
+12:22:33 │       vagaro-appointments │ X [ERROR] Could not resolve "react/jsx-runtime"
+12:22:33 │       vagaro-appointments │
+12:22:33 │       vagaro-appointments │     extensions/vagaro-appointments/src/Tile.jsx:4:9:
+12:22:33 │       vagaro-appointments │       4 │   render(<Extension />, document.body);
+12:22:33 │       vagaro-appointments │         ╵          ^
+12:22:33 │       vagaro-appointments │
+12:22:33 │       vagaro-appointments │   You can mark the path "react/jsx-runtime" as external to exclude it from the bundle, which will remove this error and leave the unresolved path in
+ the bundle.
+12:22:33 │       vagaro-appointments │
+12:22:33 │               app-preview │ ❌ Error
+12:22:33 │       vagaro-appointments │ └  Build error. Please review your code and try again.
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+│ (d) Dev status │ (a) App info │ (s) Store info │                                                                                                              (q) Quit
