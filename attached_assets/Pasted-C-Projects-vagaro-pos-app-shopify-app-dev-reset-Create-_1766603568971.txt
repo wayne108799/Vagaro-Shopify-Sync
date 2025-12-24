@@ -1,0 +1,35 @@
+C:\Projects\vagaro-pos-app>shopify app dev --reset
+?  Create this project as a new app on Shopify?
+√  Yes, create it as a new app
+
+?  App name:
+√  BeautyOasis Stylist
+
+?  Configuration file name:
+√  BeautyOasis Stylist
+
+?  Configuration file shopify.app.beautyoasis-stylist.toml already exists. Do you want to choose a different configuration name?
+√  No, overwrite my existing configuration file
+
+╭─ success ────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                                          │
+│  shopify.app.beautyoasis-stylist.toml is now linked to "BeautyOasis Stylist" on Shopify                                  │
+│                                                                                                                          │
+│  Using shopify.app.beautyoasis-stylist.toml as your default config.                                                      │
+│                                                                                                                          │
+│  Next steps                                                                                                              │
+│    • Make updates to shopify.app.beautyoasis-stylist.toml in your local project                                          │
+│    • To upload your config, run `shopify app deploy`                                                                     │
+│                                                                                                                          │
+│  Reference                                                                                                               │
+│    • App configuration [1]                                                                                               │
+│                                                                                                                          │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+[1] https://shopify.dev/docs/apps/tools/cli/configuration
+
+╭─ error ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                                          │
+│  Couldn't find an index.{js,jsx,ts,tsx} file in the directories extensions/vagaro-appointments or                        │
+│  extensions/vagaro-appointments/src                                                                                      │
+│                                                                                                                          │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
