@@ -7,9 +7,9 @@ handle = "vagaro-appointments"
 description = "View and checkout Vagaro appointments in POS"
 
 [[extensions.targeting]]
-module = "./src/Tile.jsx"
+module = "./src/Tile.js"
 target = "pos.home.tile.render"
 
 [[extensions.targeting]]
-module = "./src/Modal.jsx"
+module = "./src/Modal.js"
 target = "pos.home.modal.render"
