@@ -1,4 +1,4 @@
-api_version = "2024-10"
+api_version = "2025-10"
 
 [[extensions]]
 type = "pos_ui_extension"
@@ -7,9 +7,9 @@ handle = "vagaro-appointments"
 description = "View and checkout Vagaro appointments in POS"
 
 [[extensions.targeting]]
-module = "./src/Tile.tsx"
+module = "./src/Tile.jsx"
 target = "pos.home.tile.render"
 
 [[extensions.targeting]]
-module = "./src/Modal.tsx"
+module = "./src/Modal.jsx"
 target = "pos.home.modal.render"
