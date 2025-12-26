@@ -23,6 +23,10 @@ function Extension() {
   var _useState4 = useState(null);
   var staffId = _useState4[0];
   var setStaffId = _useState4[1];
+  
+  var _useState5 = useState('');
+  var debugInfo = _useState5[0];
+  var setDebugInfo = _useState5[1];
 
   useEffect(function() {
     fetchSummary();
@@ -31,15 +35,19 @@ function Extension() {
   async function fetchSummary() {
     setLoading(true);
     setError(null);
+    setDebugInfo('Starting...');
     
     try {
       var staff = null;
       try {
         if (typeof shopify !== 'undefined' && shopify.staff && shopify.staff.current) {
           staff = await shopify.staff.current();
+          setDebugInfo('Got staff: ' + (staff ? staff.id : 'null'));
+        } else {
+          setDebugInfo('shopify.staff not available');
         }
       } catch (staffErr) {
-        console.log('Could not get staff info:', staffErr);
+        setDebugInfo('Staff error: ' + staffErr.message);
       }
       
       if (!staff || !staff.id) {
@@ -49,18 +57,24 @@ function Extension() {
       }
       
       setStaffId(staff.id);
+      var url = BACKEND_URL + '/api/pos/stylist-summary?staffId=' + staff.id;
+      setDebugInfo(function(prev) { return prev + ' | Fetching: ' + url; });
 
-      var response = await fetch(BACKEND_URL + '/api/pos/stylist-summary?staffId=' + staff.id, {
+      var response = await fetch(url, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
         mode: 'cors'
       });
 
-      if (!response.ok) throw new Error('Failed to fetch');
+      setDebugInfo(function(prev) { return prev + ' | Status: ' + response.status; });
+      
+      if (!response.ok) throw new Error('HTTP ' + response.status);
       var data = await response.json();
+      setDebugInfo(function(prev) { return prev + ' | Found: ' + data.found; });
       setError(null);
       setSummary(data);
     } catch (err) {
+      setDebugInfo(function(prev) { return prev + ' | ERROR: ' + err.message; });
       setError(err.message);
     } finally {
       setLoading(false);
@@ -127,6 +141,7 @@ function Extension() {
       h('s-scroll-box', null,
         h('s-box', { padding: 'base' },
           h('s-banner', { status: 'critical', title: 'Error' }, error),
+          h('s-text', { variant: 'bodySm' }, debugInfo),
           h('s-button', { onClick: fetchSummary }, 'Retry')
         )
       )
