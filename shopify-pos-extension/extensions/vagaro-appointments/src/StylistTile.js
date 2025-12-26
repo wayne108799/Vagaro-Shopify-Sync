@@ -19,6 +19,9 @@ function Extension() {
   }, []);
 
   async function fetchSummary() {
+    setLoading(true);
+    setError(null);
+    
     try {
       var staff = null;
       try {
@@ -37,11 +40,13 @@ function Extension() {
 
       var response = await fetch(BACKEND_URL + '/api/pos/stylist-summary?staffId=' + staff.id, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        mode: 'cors'
       });
 
       if (!response.ok) throw new Error('Failed to fetch');
       var data = await response.json();
+      setError(null);
       setSummary(data);
     } catch (err) {
       setError(err.message);
