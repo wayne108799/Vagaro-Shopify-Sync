@@ -32,13 +32,10 @@ function Extension() {
         console.log('Could not get staff info:', staffErr);
       }
       
-      if (!staff || !staff.id) {
-        setSummary({ found: false, message: 'Not signed in' });
-        setLoading(false);
-        return;
-      }
+      // If no staff ID, use 'unknown' to still fetch stylist list
+      var staffParam = (staff && staff.id) ? staff.id : 'unknown';
 
-      var response = await fetch(BACKEND_URL + '/api/pos/stylist-summary?staffId=' + staff.id, {
+      var response = await fetch(BACKEND_URL + '/api/pos/stylist-summary?staffId=' + staffParam, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
         mode: 'cors'

@@ -50,14 +50,16 @@ function Extension() {
         setDebugInfo('Staff error: ' + staffErr.message);
       }
       
+      // If no staff ID available, fetch stylist list for manual selection
+      var url;
       if (!staff || !staff.id) {
-        setError('Not signed in to POS');
-        setLoading(false);
-        return;
+        setDebugInfo(function(prev) { return prev + ' | No staff, fetching stylist list'; });
+        url = BACKEND_URL + '/api/pos/stylist-summary?staffId=unknown';
+      } else {
+        setStaffId(staff.id);
+        url = BACKEND_URL + '/api/pos/stylist-summary?staffId=' + staff.id;
       }
       
-      setStaffId(staff.id);
-      var url = BACKEND_URL + '/api/pos/stylist-summary?staffId=' + staff.id;
       setDebugInfo(function(prev) { return prev + ' | Fetching: ' + url; });
 
       var response = await fetch(url, {
