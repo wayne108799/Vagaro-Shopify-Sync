@@ -634,6 +634,33 @@ export class ShopifyClient {
     };
   }
 
+  async deleteDraftOrder(draftOrderId: string): Promise<boolean> {
+    const mutation = `
+      mutation draftOrderDelete($input: DraftOrderDeleteInput!) {
+        draftOrderDelete(input: $input) {
+          deletedId
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    // Convert numeric ID to GraphQL global ID if needed
+    const gid = draftOrderId.startsWith('gid://') ? draftOrderId : `gid://shopify/DraftOrder/${draftOrderId}`;
+    const variables = { input: { id: gid } };
+    
+    const result = await this.request("", "POST", { query: mutation, variables });
+    
+    if (result.data?.draftOrderDelete?.userErrors?.length > 0) {
+      throw new Error(`Failed to delete draft order: ${result.data.draftOrderDelete.userErrors[0].message}`);
+    }
+    
+    console.log(`[Shopify] Deleted draft order: ${draftOrderId}`);
+    return true;
+  }
+
   async getOrder(orderId: string): Promise<any> {
     const query = `
       query getOrder($id: ID!) {

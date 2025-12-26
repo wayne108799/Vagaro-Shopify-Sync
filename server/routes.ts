@@ -231,17 +231,67 @@ export async function registerRoutes(
       console.log("[Vagaro Webhook] Headers:", JSON.stringify(req.headers, null, 2));
       
       const settings = await storage.getSettings();
+      const webhookData = req.body;
+      const payload = webhookData.payload || webhookData;
+      
+      // Check for cancellation or deletion events - Vagaro can send these in various ways
+      const eventType = webhookData.event || webhookData.eventType || payload.event || payload.eventType || "";
+      const appointmentStatus = payload.status || payload.appointmentStatus || "";
+      // Vagaro also sends action field in Appointment object
+      const appointmentAction = payload.action || payload.Action || 
+                                (payload.Appointment?.Action) || (payload.Appointment?.action) || 
+                                webhookData.action || "";
+      const isCanceled = eventType.toLowerCase().includes("cancel") || 
+                         eventType.toLowerCase().includes("delete") ||
+                         appointmentStatus.toLowerCase() === "canceled" ||
+                         appointmentStatus.toLowerCase() === "cancelled" ||
+                         appointmentStatus.toLowerCase() === "deleted" ||
+                         appointmentAction.toLowerCase() === "cancel" ||
+                         appointmentAction.toLowerCase() === "delete" ||
+                         appointmentAction.toLowerCase() === "cancelled" ||
+                         appointmentAction.toLowerCase() === "canceled";
+      
+      const appointmentId = payload.appointmentId || webhookData.id;
+      
+      // Handle cancellation/deletion - update order status and delete Shopify draft
+      if (isCanceled && appointmentId) {
+        console.log(`[Vagaro Webhook] Processing cancellation for appointment ${appointmentId}`);
+        const existing = await storage.getOrderByVagaroId(appointmentId);
+        
+        if (existing) {
+          // Delete draft order from Shopify if it exists
+          if (existing.shopifyDraftOrderId && settings?.shopifyStoreUrl && settings?.shopifyAccessToken) {
+            try {
+              const shopifyClient = new ShopifyClient(settings);
+              await shopifyClient.deleteDraftOrder(existing.shopifyDraftOrderId);
+              console.log(`[Vagaro Webhook] Deleted Shopify draft order: ${existing.shopifyDraftOrderId}`);
+            } catch (shopifyError: any) {
+              console.log(`[Vagaro Webhook] Could not delete Shopify draft: ${shopifyError.message}`);
+            }
+          }
+          
+          // Update order status to canceled (keep in database)
+          const newStatus = eventType.toLowerCase().includes("delete") ? "deleted" : "canceled";
+          await storage.updateOrder(existing.id, { 
+            status: newStatus,
+            shopifyDraftOrderId: null, // Clear the draft order reference
+          });
+          console.log(`[Vagaro Webhook] Updated order ${existing.id} status to: ${newStatus}`);
+          return res.json({ message: `Order ${newStatus}`, orderId: existing.id });
+        } else {
+          console.log(`[Vagaro Webhook] No existing order found for canceled appointment ${appointmentId}`);
+          return res.json({ message: "No order to cancel" });
+        }
+      }
+      
+      // For non-cancellation events, check sync settings
       if (!settings?.syncOnBooked) {
         console.log("[Vagaro Webhook] Sync disabled in settings");
         return res.json({ message: "Sync disabled" });
       }
-
-      const webhookData = req.body;
-      const payload = webhookData.payload || webhookData;
       
       // Extract data from Vagaro's actual payload structure
       const serviceProviderId = payload.serviceProviderId || payload.employeeId;
-      const appointmentId = payload.appointmentId || webhookData.id;
       const totalAmount = parseFloat(payload.amount || payload.totalAmount || "0");
       const serviceTitle = payload.serviceTitle || payload.serviceName || "Service";
       const customerId = payload.customerId;
@@ -907,6 +957,59 @@ export async function registerRoutes(
         excludeDisabled !== "false"
       );
       res.json(orders);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin Appointments - get all appointments with status filtering (includes canceled/deleted)
+  app.get("/api/admin/appointments", requireAdmin, async (req, res) => {
+    try {
+      const { startDate, endDate, stylistId, status } = req.query;
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: "startDate and endDate are required" });
+      }
+      
+      // Get all orders including canceled/deleted
+      const allOrders = await storage.getAllAppointments(
+        startDate as string,
+        endDate as string,
+        stylistId as string | undefined,
+        status as string | undefined
+      );
+      res.json(allOrders);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin Appointments - cancel an appointment
+  app.post("/api/admin/appointments/:id/cancel", requireAdmin, async (req, res) => {
+    try {
+      const { reason } = req.body;
+      const order = await storage.updateOrder(req.params.id, { 
+        status: "canceled",
+        shopifyDraftOrderId: null,
+      });
+      if (!order) {
+        return res.status(404).json({ error: "Appointment not found" });
+      }
+      res.json(order);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin Appointments - restore a canceled/deleted appointment
+  app.post("/api/admin/appointments/:id/restore", requireAdmin, async (req, res) => {
+    try {
+      const order = await storage.updateOrder(req.params.id, { 
+        status: "draft",
+      });
+      if (!order) {
+        return res.status(404).json({ error: "Appointment not found" });
+      }
+      res.json(order);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

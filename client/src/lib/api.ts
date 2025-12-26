@@ -390,3 +390,44 @@ export async function deleteCommissionAdjustment(id: string): Promise<{ message:
   }
   return res.json();
 }
+
+export async function getAppointments(filters: {
+  startDate: string;
+  endDate: string;
+  stylistId?: string;
+  status?: string;
+}): Promise<Order[]> {
+  const params = new URLSearchParams();
+  params.set("startDate", filters.startDate);
+  params.set("endDate", filters.endDate);
+  if (filters.stylistId) params.set("stylistId", filters.stylistId);
+  if (filters.status) params.set("status", filters.status);
+  
+  const res = await fetch(`/api/admin/appointments?${params}`);
+  if (!res.ok) throw new Error("Failed to fetch appointments");
+  return res.json();
+}
+
+export async function cancelAppointment(id: string, reason?: string): Promise<Order> {
+  const res = await fetch(`/api/admin/appointments/${id}/cancel`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason }),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to cancel appointment");
+  }
+  return res.json();
+}
+
+export async function restoreAppointment(id: string): Promise<Order> {
+  const res = await fetch(`/api/admin/appointments/${id}/restore`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to restore appointment");
+  }
+  return res.json();
+}

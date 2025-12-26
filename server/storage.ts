@@ -94,6 +94,8 @@ export interface IStorage {
   updateCommissionAdjustment(id: string, data: Partial<InsertCommissionAdjustment>): Promise<CommissionAdjustment | undefined>;
   deleteCommissionAdjustment(id: string): Promise<boolean>;
   
+  getAllAppointments(startDate: string, endDate: string, stylistId?: string, status?: string): Promise<Order[]>;
+  
   getCommissionReport(startDate: string, endDate: string, stylistId?: string): Promise<{
     stylistId: string;
     stylistName: string;
@@ -460,6 +462,26 @@ export class DatabaseStorage implements IStorage {
     }
     
     return result;
+  }
+
+  async getAllAppointments(startDate: string, endDate: string, stylistId?: string, status?: string): Promise<Order[]> {
+    const conditions = [
+      gte(orders.createdAt, new Date(startDate + "T00:00:00")),
+      lte(orders.createdAt, new Date(endDate + "T23:59:59.999")),
+    ];
+    
+    if (stylistId) {
+      conditions.push(eq(orders.stylistId, stylistId));
+    }
+    
+    // Filter by status if provided (all, draft, completed, canceled, deleted)
+    if (status && status !== "all") {
+      conditions.push(eq(orders.status, status));
+    }
+    
+    return await db.select().from(orders)
+      .where(and(...conditions))
+      .orderBy(desc(orders.createdAt));
   }
 
   async getCommissionAdjustments(filters?: { stylistId?: string; periodStart?: string; periodEnd?: string }): Promise<CommissionAdjustment[]> {

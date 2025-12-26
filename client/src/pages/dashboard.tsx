@@ -39,7 +39,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls, syncStylistsFromVagaro, setStylistPin, deleteStylist, getCommissionTiers, setCommissionTiers, type CommissionTier, getAdminTimeEntries, createAdminTimeEntry, updateAdminTimeEntry, deleteAdminTimeEntry, getTimeclockReport, type TimeEntry, type TimeclockReportEntry, getCommissionReport, getAdminOrders, createManualOrder, voidOrder, restoreOrder, getCommissionAdjustments, createCommissionAdjustment, deleteCommissionAdjustment, type CommissionReportEntry, type CommissionAdjustment } from "@/lib/api";
+import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls, syncStylistsFromVagaro, setStylistPin, deleteStylist, getCommissionTiers, setCommissionTiers, type CommissionTier, getAdminTimeEntries, createAdminTimeEntry, updateAdminTimeEntry, deleteAdminTimeEntry, getTimeclockReport, type TimeEntry, type TimeclockReportEntry, getCommissionReport, getAdminOrders, createManualOrder, voidOrder, restoreOrder, getCommissionAdjustments, createCommissionAdjustment, deleteCommissionAdjustment, getAppointments, cancelAppointment, restoreAppointment, type CommissionReportEntry, type CommissionAdjustment } from "@/lib/api";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 
@@ -94,6 +94,7 @@ export default function Dashboard() {
   const [showVoidedOrders, setShowVoidedOrders] = useState(false);
   const [hideDisabledStylists, setHideDisabledStylists] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [appointmentStatusFilter, setAppointmentStatusFilter] = useState("all");
   const queryClient = useQueryClient();
 
   const { data: stylists = [] } = useQuery({
@@ -170,6 +171,17 @@ export default function Dashboard() {
       stylistId: timeclockStylistFilter === "all" ? undefined : timeclockStylistFilter,
     }),
     enabled: activeTab === "reporting" && reportingSubTab === "commissions",
+  });
+
+  const { data: appointments = [] } = useQuery({
+    queryKey: ["appointments", timeclockStartDate, timeclockEndDate, timeclockStylistFilter, appointmentStatusFilter],
+    queryFn: () => getAppointments({
+      startDate: timeclockStartDate,
+      endDate: timeclockEndDate,
+      stylistId: timeclockStylistFilter === "all" ? undefined : timeclockStylistFilter,
+      status: appointmentStatusFilter,
+    }),
+    enabled: activeTab === "appointments",
   });
 
   const copyToClipboard = (text: string, label: string) => {
@@ -395,6 +407,24 @@ export default function Dashboard() {
     onError: (error: any) => toast.error(error.message || "Failed to delete adjustment"),
   });
 
+  const cancelAppointmentMutation = useMutation({
+    mutationFn: (id: string) => cancelAppointment(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      toast.success("Appointment canceled");
+    },
+    onError: (error: any) => toast.error(error.message || "Failed to cancel appointment"),
+  });
+
+  const restoreAppointmentMutation = useMutation({
+    mutationFn: restoreAppointment,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      toast.success("Appointment restored");
+    },
+    onError: (error: any) => toast.error(error.message || "Failed to restore appointment"),
+  });
+
   const openEntryDialog = (entry?: TimeEntry) => {
     if (entry) {
       setEditingEntry(entry);
@@ -459,6 +489,7 @@ export default function Dashboard() {
 
   const navItems = [
     { id: "overview", label: "Overview", icon: LayoutDashboard, section: "Admin" },
+    { id: "appointments", label: "Appointments", icon: Calendar, section: "Admin" },
     { id: "connections", label: "Connections", icon: Store, section: "Admin" },
     { id: "configuration", label: "Configuration", icon: Settings, section: "Admin" },
     { id: "logs", label: "Activity Logs", icon: Activity, section: "Admin" },
@@ -703,6 +734,155 @@ export default function Dashboard() {
                       </div>
                     </CardContent>
                   </Card>
+                </div>
+              </div>
+            )}
+
+            {/* APPOINTMENTS TAB */}
+            {activeTab === "appointments" && (
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                  <h2 className="text-xl font-semibold">All Appointments</h2>
+                  <div className="flex flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <Input 
+                        type="date" 
+                        value={timeclockStartDate}
+                        onChange={(e) => setTimeclockStartDate(e.target.value)}
+                        className="w-auto"
+                        data-testid="input-appointments-start-date"
+                      />
+                      <span className="text-muted-foreground">to</span>
+                      <Input 
+                        type="date" 
+                        value={timeclockEndDate}
+                        onChange={(e) => setTimeclockEndDate(e.target.value)}
+                        className="w-auto"
+                        data-testid="input-appointments-end-date"
+                      />
+                    </div>
+                    <Select value={timeclockStylistFilter} onValueChange={setTimeclockStylistFilter}>
+                      <SelectTrigger className="w-[160px]" data-testid="select-appointments-stylist">
+                        <SelectValue placeholder="All Stylists" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Stylists</SelectItem>
+                        {stylists.filter(s => s.enabled).map(s => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select value={appointmentStatusFilter} onValueChange={setAppointmentStatusFilter}>
+                      <SelectTrigger className="w-[140px]" data-testid="select-appointments-status">
+                        <SelectValue placeholder="All Statuses" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Statuses</SelectItem>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="paid">Paid</SelectItem>
+                        <SelectItem value="canceled">Canceled</SelectItem>
+                        <SelectItem value="deleted">Deleted</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <Card>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Appointment ID</TableHead>
+                          <TableHead>Customer</TableHead>
+                          <TableHead>Service</TableHead>
+                          <TableHead>Stylist</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Shopify Draft</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {appointments.map((appt) => (
+                          <TableRow 
+                            key={appt.id} 
+                            className={appt.status === "canceled" || appt.status === "deleted" ? "opacity-60" : ""}
+                            data-testid={`row-appointment-${appt.id}`}
+                          >
+                            <TableCell>{format(new Date(appt.createdAt), "MMM d, yyyy h:mm a")}</TableCell>
+                            <TableCell className="font-mono text-xs">{appt.vagaroAppointmentId || "-"}</TableCell>
+                            <TableCell>{appt.customerName}</TableCell>
+                            <TableCell>{appt.serviceName || appt.services?.join(", ") || "-"}</TableCell>
+                            <TableCell>{appt.stylistName || stylists.find(s => s.id === appt.stylistId)?.name || "-"}</TableCell>
+                            <TableCell>${parseFloat(appt.totalAmount).toFixed(2)}</TableCell>
+                            <TableCell>
+                              <Badge 
+                                variant={
+                                  appt.status === "paid" ? "default" :
+                                  appt.status === "canceled" || appt.status === "deleted" ? "destructive" :
+                                  "secondary"
+                                }
+                                className={
+                                  appt.status === "paid" ? "bg-green-500/10 text-green-600 border-green-200" :
+                                  appt.status === "canceled" ? "bg-orange-500/10 text-orange-600 border-orange-200" :
+                                  appt.status === "deleted" ? "bg-red-500/10 text-red-600 border-red-200" :
+                                  ""
+                                }
+                              >
+                                {appt.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {appt.shopifyDraftOrderId ? (
+                                <span className="font-mono text-xs text-green-600">#{appt.shopifyDraftOrderId}</span>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {(appt.status === "canceled" || appt.status === "deleted") ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => restoreAppointmentMutation.mutate(appt.id)}
+                                  disabled={restoreAppointmentMutation.isPending}
+                                  data-testid={`button-restore-appointment-${appt.id}`}
+                                >
+                                  <RotateCcw className="w-4 h-4 mr-1" />
+                                  Restore
+                                </Button>
+                              ) : appt.status === "draft" ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                                  onClick={() => cancelAppointmentMutation.mutate(appt.id)}
+                                  disabled={cancelAppointmentMutation.isPending}
+                                  data-testid={`button-cancel-appointment-${appt.id}`}
+                                >
+                                  <Ban className="w-4 h-4 mr-1" />
+                                  Cancel
+                                </Button>
+                              ) : null}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {appointments.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                              No appointments found for this period
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+
+                <div className="text-sm text-muted-foreground">
+                  Showing {appointments.length} appointment{appointments.length !== 1 ? "s" : ""}
+                  {appointmentStatusFilter !== "all" && ` with status "${appointmentStatusFilter}"`}
                 </div>
               </div>
             )}
