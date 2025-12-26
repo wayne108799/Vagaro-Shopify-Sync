@@ -13,6 +13,7 @@ function Extension() {
   const [error, setError] = useState(null);
   const [viewMode, setViewMode] = useState(null);
   const [stylistName, setStylistName] = useState(null);
+  const [debugInfo, setDebugInfo] = useState('');
 
   useEffect(() => {
     fetchAppointments();
@@ -21,6 +22,7 @@ function Extension() {
   async function fetchAppointments() {
     try {
       setIsLoading(true);
+      setDebugInfo('Starting fetch...');
       
       // Try to get current staff member, but don't fail if unavailable
       var staffParam = '';
@@ -29,23 +31,36 @@ function Extension() {
           var staff = await shopify.staff.current();
           if (staff && staff.id) {
             staffParam = '?staffId=' + staff.id;
+            setDebugInfo('Got staff: ' + staff.id);
+          } else {
+            setDebugInfo('No staff ID');
           }
+        } else {
+          setDebugInfo('shopify.staff not available');
         }
       } catch (staffErr) {
-        console.log('Could not get staff info:', staffErr);
+        setDebugInfo('Staff error: ' + staffErr.message);
       }
       
-      const response = await fetch(BACKEND_URL + '/api/pos/pending-appointments' + staffParam, {
+      var url = BACKEND_URL + '/api/pos/pending-appointments' + staffParam;
+      setDebugInfo(function(prev) { return prev + ' | Fetching: ' + url; });
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
+        mode: 'cors'
       });
 
-      if (!response.ok) throw new Error('Failed to fetch');
+      setDebugInfo(function(prev) { return prev + ' | Status: ' + response.status; });
+      
+      if (!response.ok) throw new Error('HTTP ' + response.status);
       const data = await response.json();
+      setDebugInfo(function(prev) { return prev + ' | Got ' + (data.appointments || []).length + ' appointments'; });
       setAppointments(data.appointments || []);
       setViewMode(data.viewMode || 'manager');
       setStylistName(data.stylistName || null);
     } catch (err) {
+      setDebugInfo(function(prev) { return prev + ' | ERROR: ' + err.message; });
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -99,6 +114,7 @@ function Extension() {
       h('s-scroll-box', null,
         h('s-box', { padding: 'base' },
           h('s-banner', { status: 'critical', title: 'Error' }, error),
+          h('s-text', { variant: 'bodySm' }, debugInfo),
           h('s-button', { onClick: fetchAppointments }, 'Retry')
         )
       )
