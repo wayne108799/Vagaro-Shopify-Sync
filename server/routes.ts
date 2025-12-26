@@ -308,12 +308,25 @@ export async function registerRoutes(
         console.log(`[Vagaro Webhook] Could not fetch API details, using webhook data: ${apiError.message}`);
       }
       
-      // Find stylist by Vagaro ID (serviceProviderId)
+      // Find stylist by Vagaro ID (serviceProviderId) - check ALL stylists first (enabled or not)
       const allStylists = await storage.getStylists();
-      let stylist = allStylists.find(s => s.vagaroId === serviceProviderId && s.enabled);
+      let stylist = allStylists.find(s => s.vagaroId === serviceProviderId);
       
-      // If stylist not found, create with real name from API
-      if (!stylist) {
+      if (stylist) {
+        // Stylist exists - update name if needed but PRESERVE their enabled status
+        if (stylist.name.startsWith('Stylist ') && !employeeName.startsWith('Stylist ')) {
+          console.log(`[Vagaro Webhook] Updating stylist name from ${stylist.name} to ${employeeName}`);
+          stylist = await storage.upsertStylistByVagaroId(serviceProviderId, {
+            name: employeeName,
+            role: employeeRole,
+            commissionRate: stylist.commissionRate,
+            vagaroId: serviceProviderId,
+            enabled: stylist.enabled, // Keep their current enabled status
+          });
+        }
+        console.log(`[Vagaro Webhook] Using existing stylist: ${stylist.name} (enabled: ${stylist.enabled})`);
+      } else {
+        // Stylist doesn't exist at all - create new one
         console.log(`[Vagaro Webhook] Stylist ${serviceProviderId} not found, creating: ${employeeName}`);
         stylist = await storage.upsertStylistByVagaroId(serviceProviderId, {
           name: employeeName,
@@ -323,16 +336,6 @@ export async function registerRoutes(
           enabled: true,
         });
         console.log(`[Vagaro Webhook] Created stylist: ${stylist.name}`);
-      } else if (stylist.name.startsWith('Stylist ') && !employeeName.startsWith('Stylist ')) {
-        // Update stylist with real name if we have it
-        console.log(`[Vagaro Webhook] Updating stylist name from ${stylist.name} to ${employeeName}`);
-        stylist = await storage.upsertStylistByVagaroId(serviceProviderId, {
-          name: employeeName,
-          role: employeeRole,
-          commissionRate: stylist.commissionRate,
-          vagaroId: serviceProviderId,
-          enabled: stylist.enabled,
-        });
       }
 
       // Check if order already exists
