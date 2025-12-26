@@ -1202,11 +1202,13 @@ export async function registerRoutes(
         return res.json({ 
           found: false,
           message: "Stylist not linked to this POS account",
-          availableStylists: allStylists.filter(s => s.enabled).map(s => ({
-            id: s.id,
-            name: s.name,
-            hasShopifyLink: !!s.shopifyStaffId
-          }))
+          availableStylists: allStylists
+            .filter(s => s.enabled && !s.name.startsWith('Stylist Unknown'))
+            .map(s => ({
+              id: s.id,
+              name: s.name,
+              hasShopifyLink: !!s.shopifyStaffId
+            }))
         });
       }
       
