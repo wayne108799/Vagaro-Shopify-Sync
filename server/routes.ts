@@ -298,17 +298,39 @@ export async function registerRoutes(
         return res.json({ message: "Update sync disabled" });
       }
       
-      // Extract data from Vagaro's actual payload structure
-      const serviceProviderId = payload.serviceProviderId || payload.employeeId;
-      const totalAmount = parseFloat(payload.amount || payload.totalAmount || "0");
-      const serviceTitle = payload.serviceTitle || payload.serviceName || "Service";
-      const customerId = payload.customerId;
-      const businessId = payload.businessId;
+      // Extract data from Vagaro's actual payload structure - check multiple locations
+      // Vagaro sends data in different formats for online vs in-app bookings
+      const appointment = payload.Appointment || payload.appointment || payload;
+      const services = appointment.Services || appointment.services || payload.Services || [];
+      const firstService = services[0] || {};
       
-      // Extract actual appointment date/time from Vagaro payload
+      const serviceProviderId = payload.serviceProviderId || payload.employeeId || 
+                                 appointment.ServiceProviderId || appointment.serviceProviderId ||
+                                 appointment.EmployeeId || appointment.employeeId ||
+                                 firstService.ServiceProviderId || firstService.serviceProviderId ||
+                                 firstService.EmployeeId || firstService.employeeId;
+      const totalAmount = parseFloat(
+        payload.amount || payload.totalAmount || 
+        appointment.TotalAmount || appointment.totalAmount ||
+        appointment.Amount || appointment.amount ||
+        firstService.Price || firstService.price || "0"
+      );
+      const serviceTitle = payload.serviceTitle || payload.serviceName || 
+                           appointment.ServiceTitle || appointment.serviceTitle ||
+                           firstService.ServiceTitle || firstService.serviceTitle ||
+                           firstService.Name || firstService.name || "Service";
+      const customerId = payload.customerId || appointment.CustomerId || appointment.customerId;
+      const businessId = payload.businessId || appointment.BusinessId || appointment.businessId;
+      
+      console.log(`[Vagaro Webhook] Extracted: serviceProviderId=${serviceProviderId}, totalAmount=${totalAmount}, serviceTitle=${serviceTitle}`);
+      
+      // Extract actual appointment date/time from Vagaro payload - check multiple locations
       const appointmentDateStr = payload.startDateTime || payload.appointmentDate || 
                                   payload.scheduledDate || payload.startTime ||
-                                  payload.Appointment?.startDateTime || payload.Appointment?.StartDateTime ||
+                                  appointment.StartDateTime || appointment.startDateTime ||
+                                  appointment.AppointmentDate || appointment.appointmentDate ||
+                                  appointment.ScheduledDate || appointment.scheduledDate ||
+                                  firstService.StartDateTime || firstService.startDateTime ||
                                   webhookData.startDateTime;
       let appointmentDate = new Date();
       if (appointmentDateStr) {
