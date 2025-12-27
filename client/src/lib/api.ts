@@ -431,3 +431,16 @@ export async function restoreAppointment(id: string): Promise<Order> {
   }
   return res.json();
 }
+
+export async function updateAppointmentDate(id: string, appointmentDate: string): Promise<Order> {
+  const res = await fetch(`/api/admin/appointments/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ appointmentDate }),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to update appointment date");
+  }
+  return res.json();
+}

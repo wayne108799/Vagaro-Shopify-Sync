@@ -297,6 +297,22 @@ export async function registerRoutes(
       const customerId = payload.customerId;
       const businessId = payload.businessId;
       
+      // Extract actual appointment date/time from Vagaro payload
+      const appointmentDateStr = payload.startDateTime || payload.appointmentDate || 
+                                  payload.scheduledDate || payload.startTime ||
+                                  payload.Appointment?.startDateTime || payload.Appointment?.StartDateTime ||
+                                  webhookData.startDateTime;
+      let appointmentDate = new Date();
+      if (appointmentDateStr) {
+        const parsed = new Date(appointmentDateStr);
+        if (!isNaN(parsed.getTime())) {
+          appointmentDate = parsed;
+          console.log(`[Vagaro Webhook] Extracted appointment date: ${appointmentDate.toISOString()}`);
+        }
+      } else {
+        console.log(`[Vagaro Webhook] No appointment date found in payload, using current date`);
+      }
+      
       console.log(`[Vagaro Webhook] Processing appointment ${appointmentId} for service provider ${serviceProviderId}`);
       
       // Always store the latest businessId from webhook
@@ -1005,6 +1021,25 @@ export async function registerRoutes(
     try {
       const order = await storage.updateOrder(req.params.id, { 
         status: "draft",
+      });
+      if (!order) {
+        return res.status(404).json({ error: "Appointment not found" });
+      }
+      res.json(order);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin Appointments - update appointment date
+  app.patch("/api/admin/appointments/:id", requireAdmin, async (req, res) => {
+    try {
+      const { appointmentDate } = req.body;
+      if (!appointmentDate) {
+        return res.status(400).json({ error: "appointmentDate is required" });
+      }
+      const order = await storage.updateOrder(req.params.id, { 
+        appointmentDate: new Date(appointmentDate),
       });
       if (!order) {
         return res.status(404).json({ error: "Appointment not found" });

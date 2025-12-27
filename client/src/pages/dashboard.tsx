@@ -39,7 +39,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls, syncStylistsFromVagaro, setStylistPin, deleteStylist, getCommissionTiers, setCommissionTiers, type CommissionTier, getAdminTimeEntries, createAdminTimeEntry, updateAdminTimeEntry, deleteAdminTimeEntry, getTimeclockReport, type TimeEntry, type TimeclockReportEntry, getCommissionReport, getAdminOrders, createManualOrder, voidOrder, restoreOrder, getCommissionAdjustments, createCommissionAdjustment, deleteCommissionAdjustment, getAppointments, cancelAppointment, restoreAppointment, type CommissionReportEntry, type CommissionAdjustment } from "@/lib/api";
+import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls, syncStylistsFromVagaro, setStylistPin, deleteStylist, getCommissionTiers, setCommissionTiers, type CommissionTier, getAdminTimeEntries, createAdminTimeEntry, updateAdminTimeEntry, deleteAdminTimeEntry, getTimeclockReport, type TimeEntry, type TimeclockReportEntry, getCommissionReport, getAdminOrders, createManualOrder, voidOrder, restoreOrder, getCommissionAdjustments, createCommissionAdjustment, deleteCommissionAdjustment, getAppointments, cancelAppointment, restoreAppointment, updateAppointmentDate, type CommissionReportEntry, type CommissionAdjustment } from "@/lib/api";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 
@@ -95,6 +95,9 @@ export default function Dashboard() {
   const [hideDisabledStylists, setHideDisabledStylists] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [appointmentStatusFilter, setAppointmentStatusFilter] = useState("all");
+  const [editAppointmentDialogOpen, setEditAppointmentDialogOpen] = useState(false);
+  const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
+  const [editAppointmentDate, setEditAppointmentDate] = useState("");
   const queryClient = useQueryClient();
 
   const { data: stylists = [] } = useQuery({
@@ -424,6 +427,23 @@ export default function Dashboard() {
     },
     onError: (error: any) => toast.error(error.message || "Failed to restore appointment"),
   });
+
+  const updateAppointmentDateMutation = useMutation({
+    mutationFn: ({ id, appointmentDate }: { id: string; appointmentDate: string }) => 
+      updateAppointmentDate(id, appointmentDate),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      toast.success("Appointment date updated");
+      setEditAppointmentDialogOpen(false);
+    },
+    onError: (error: any) => toast.error(error.message || "Failed to update appointment date"),
+  });
+
+  const openEditAppointmentDialog = (id: string, currentDate: string | null) => {
+    setEditingAppointmentId(id);
+    setEditAppointmentDate(currentDate ? format(new Date(currentDate), "yyyy-MM-dd'T'HH:mm") : "");
+    setEditAppointmentDialogOpen(true);
+  };
 
   const openEntryDialog = (entry?: TimeEntry) => {
     if (entry) {
@@ -841,30 +861,40 @@ export default function Dashboard() {
                               )}
                             </TableCell>
                             <TableCell className="text-right">
-                              {(appt.status === "canceled" || appt.status === "deleted") ? (
+                              <div className="flex items-center justify-end gap-2">
                                 <Button
                                   size="sm"
-                                  variant="outline"
-                                  onClick={() => restoreAppointmentMutation.mutate(appt.id)}
-                                  disabled={restoreAppointmentMutation.isPending}
-                                  data-testid={`button-restore-appointment-${appt.id}`}
+                                  variant="ghost"
+                                  onClick={() => openEditAppointmentDialog(appt.id, appt.appointmentDate ? String(appt.appointmentDate) : null)}
+                                  data-testid={`button-edit-appointment-${appt.id}`}
                                 >
-                                  <RotateCcw className="w-4 h-4 mr-1" />
-                                  Restore
+                                  <Pencil className="w-4 h-4" />
                                 </Button>
-                              ) : appt.status === "draft" ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-orange-600 border-orange-200 hover:bg-orange-50"
-                                  onClick={() => cancelAppointmentMutation.mutate(appt.id)}
-                                  disabled={cancelAppointmentMutation.isPending}
-                                  data-testid={`button-cancel-appointment-${appt.id}`}
-                                >
-                                  <Ban className="w-4 h-4 mr-1" />
-                                  Cancel
-                                </Button>
-                              ) : null}
+                                {(appt.status === "canceled" || appt.status === "deleted") ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => restoreAppointmentMutation.mutate(appt.id)}
+                                    disabled={restoreAppointmentMutation.isPending}
+                                    data-testid={`button-restore-appointment-${appt.id}`}
+                                  >
+                                    <RotateCcw className="w-4 h-4 mr-1" />
+                                    Restore
+                                  </Button>
+                                ) : appt.status === "draft" ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                                    onClick={() => cancelAppointmentMutation.mutate(appt.id)}
+                                    disabled={cancelAppointmentMutation.isPending}
+                                    data-testid={`button-cancel-appointment-${appt.id}`}
+                                  >
+                                    <Ban className="w-4 h-4 mr-1" />
+                                    Cancel
+                                  </Button>
+                                ) : null}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -2223,6 +2253,41 @@ export default function Dashboard() {
               data-testid="button-save-adjustment"
             >
               {createAdjustmentMutation.isPending ? "Creating..." : "Add Adjustment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editAppointmentDialogOpen} onOpenChange={setEditAppointmentDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Service Date</DialogTitle>
+            <DialogDescription>
+              Update the service date for this appointment
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label>Service Date & Time</Label>
+              <Input
+                type="datetime-local"
+                value={editAppointmentDate}
+                onChange={(e) => setEditAppointmentDate(e.target.value)}
+                data-testid="input-edit-appointment-date"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditAppointmentDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => editingAppointmentId && updateAppointmentDateMutation.mutate({
+                id: editingAppointmentId,
+                appointmentDate: new Date(editAppointmentDate).toISOString(),
+              })}
+              disabled={!editAppointmentDate || updateAppointmentDateMutation.isPending}
+              data-testid="button-save-appointment-date"
+            >
+              {updateAppointmentDateMutation.isPending ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
         </DialogContent>
