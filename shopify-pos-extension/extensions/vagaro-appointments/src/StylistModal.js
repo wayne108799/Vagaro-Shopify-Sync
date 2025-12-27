@@ -39,6 +39,18 @@ function Extension() {
     
     try {
       var staff = null;
+      var savedLinkId = null;
+      
+      // Check for saved link ID in localStorage
+      try {
+        savedLinkId = localStorage.getItem('vagaro_stylist_link');
+        if (savedLinkId) {
+          setDebugInfo('Found saved link: ' + savedLinkId);
+        }
+      } catch (e) {
+        // localStorage might not be available
+      }
+      
       try {
         if (typeof shopify !== 'undefined' && shopify.staff && shopify.staff.current) {
           staff = await shopify.staff.current();
@@ -50,14 +62,16 @@ function Extension() {
         setDebugInfo('Staff error: ' + staffErr.message);
       }
       
-      // If no staff ID available, fetch stylist list for manual selection
+      // If no staff ID available, use saved link or fetch stylist list for manual selection
       var url;
-      if (!staff || !staff.id) {
-        setDebugInfo(function(prev) { return prev + ' | No staff, fetching stylist list'; });
+      var effectiveStaffId = (staff && staff.id) ? staff.id : savedLinkId;
+      
+      if (!effectiveStaffId) {
+        setDebugInfo(function(prev) { return prev + ' | No staff or link, fetching stylist list'; });
         url = BACKEND_URL + '/api/pos/stylist-summary?staffId=unknown';
       } else {
-        setStaffId(staff.id);
-        url = BACKEND_URL + '/api/pos/stylist-summary?staffId=' + staff.id;
+        setStaffId(effectiveStaffId);
+        url = BACKEND_URL + '/api/pos/stylist-summary?staffId=' + effectiveStaffId;
       }
       
       setDebugInfo(function(prev) { return prev + ' | Fetching: ' + url; });
@@ -92,6 +106,17 @@ function Extension() {
       });
 
       if (!response.ok) throw new Error('Failed to link');
+      
+      var data = await response.json();
+      // Store the link ID for future lookups
+      if (data.linkId) {
+        try {
+          localStorage.setItem('vagaro_stylist_link', data.linkId);
+          setStaffId(data.linkId);
+        } catch (e) {
+          // localStorage might not be available
+        }
+      }
       
       shopify.toast.show('Account linked successfully');
       fetchSummary();
