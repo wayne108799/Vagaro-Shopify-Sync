@@ -284,10 +284,18 @@ export async function registerRoutes(
         }
       }
       
+      // Check if this is an update to an existing appointment
+      const existingOrder = appointmentId ? await storage.getOrderByVagaroId(appointmentId) : null;
+      const isUpdate = !!existingOrder;
+      
       // For non-cancellation events, check sync settings
-      if (!settings?.syncOnBooked) {
-        console.log("[Vagaro Webhook] Sync disabled in settings");
+      if (!isUpdate && !settings?.syncOnBooked) {
+        console.log("[Vagaro Webhook] Sync disabled in settings (new appointment)");
         return res.json({ message: "Sync disabled" });
+      }
+      if (isUpdate && !settings?.syncOnUpdated) {
+        console.log("[Vagaro Webhook] Update sync disabled in settings");
+        return res.json({ message: "Update sync disabled" });
       }
       
       // Extract data from Vagaro's actual payload structure
@@ -472,26 +480,42 @@ export async function registerRoutes(
         console.log(`[Vagaro Webhook] Created Shopify draft order: ${draftOrder.name} (${shopifyDraftOrderId})`);
       }
 
-      // Create order in database
-      const order = await storage.createOrder({
-        vagaroAppointmentId: appointmentId,
-        shopifyDraftOrderId: shopifyDraftOrderId,
-        shopifyProductVariantId: variantId || null,
-        stylistId: stylist.id,
-        stylistName: stylist.name,
-        customerName: customerName,
-        customerEmail: customerEmail,
-        serviceName: serviceTitle,
-        services: [serviceTitle],
-        totalAmount: totalAmount.toFixed(2),
-        tipAmount: "0",
-        commissionAmount: commissionAmount.toFixed(2),
-        status: "draft",
-        appointmentDate: new Date(),
-      });
-
-      console.log(`[Vagaro Webhook] Order created: ${order.id}`);
-      res.json({ message: "Order created", order, businessId });
+      // Create or update order in database
+      let order;
+      if (isUpdate && existingOrder) {
+        // Update existing order with new data
+        order = await storage.updateOrder(existingOrder.id, {
+          customerName: customerName,
+          customerEmail: customerEmail,
+          serviceName: serviceTitle,
+          services: [serviceTitle],
+          totalAmount: totalAmount.toFixed(2),
+          commissionAmount: commissionAmount.toFixed(2),
+          appointmentDate: appointmentDate,
+        });
+        console.log(`[Vagaro Webhook] Order updated: ${existingOrder.id}`);
+        res.json({ message: "Order updated", order, businessId });
+      } else {
+        // Create new order
+        order = await storage.createOrder({
+          vagaroAppointmentId: appointmentId,
+          shopifyDraftOrderId: shopifyDraftOrderId,
+          shopifyProductVariantId: variantId || null,
+          stylistId: stylist.id,
+          stylistName: stylist.name,
+          customerName: customerName,
+          customerEmail: customerEmail,
+          serviceName: serviceTitle,
+          services: [serviceTitle],
+          totalAmount: totalAmount.toFixed(2),
+          tipAmount: "0",
+          commissionAmount: commissionAmount.toFixed(2),
+          status: "draft",
+          appointmentDate: appointmentDate,
+        });
+        console.log(`[Vagaro Webhook] Order created: ${order.id}`);
+        res.json({ message: "Order created", order, businessId });
+      }
     } catch (error: any) {
       console.error("Webhook error:", error);
       res.status(500).json({ error: error.message });
