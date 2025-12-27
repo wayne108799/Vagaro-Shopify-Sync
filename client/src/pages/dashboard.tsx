@@ -792,7 +792,7 @@ export default function Dashboard() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Date</TableHead>
+                          <TableHead>Service Date</TableHead>
                           <TableHead>Appointment ID</TableHead>
                           <TableHead>Customer</TableHead>
                           <TableHead>Service</TableHead>
@@ -810,7 +810,7 @@ export default function Dashboard() {
                             className={appt.status === "canceled" || appt.status === "deleted" ? "opacity-60" : ""}
                             data-testid={`row-appointment-${appt.id}`}
                           >
-                            <TableCell>{format(new Date(appt.createdAt), "MMM d, yyyy h:mm a")}</TableCell>
+                            <TableCell>{appt.appointmentDate ? format(new Date(appt.appointmentDate), "MMM d, yyyy h:mm a") : format(new Date(appt.createdAt), "MMM d, yyyy")}</TableCell>
                             <TableCell className="font-mono text-xs">{appt.vagaroAppointmentId || "-"}</TableCell>
                             <TableCell>{appt.customerName}</TableCell>
                             <TableCell>{appt.serviceName || appt.services?.join(", ") || "-"}</TableCell>

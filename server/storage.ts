@@ -465,9 +465,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllAppointments(startDate: string, endDate: string, stylistId?: string, status?: string): Promise<Order[]> {
+    // Filter by appointmentDate (service date) rather than createdAt
     const conditions = [
-      gte(orders.createdAt, new Date(startDate + "T00:00:00")),
-      lte(orders.createdAt, new Date(endDate + "T23:59:59.999")),
+      gte(orders.appointmentDate, new Date(startDate + "T00:00:00")),
+      lte(orders.appointmentDate, new Date(endDate + "T23:59:59.999")),
     ];
     
     if (stylistId) {
@@ -481,7 +482,7 @@ export class DatabaseStorage implements IStorage {
     
     return await db.select().from(orders)
       .where(and(...conditions))
-      .orderBy(desc(orders.createdAt));
+      .orderBy(desc(orders.appointmentDate));
   }
 
   async getCommissionAdjustments(filters?: { stylistId?: string; periodStart?: string; periodEnd?: string }): Promise<CommissionAdjustment[]> {
