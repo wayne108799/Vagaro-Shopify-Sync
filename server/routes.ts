@@ -1509,6 +1509,108 @@ export async function registerRoutes(
     }
   });
 
+  // POS Clock In
+  app.post("/api/pos/clock-in", posCorsMW, async (req, res) => {
+    try {
+      const { staffId } = req.body;
+      
+      if (!staffId) {
+        return res.status(400).json({ error: "staffId is required" });
+      }
+      
+      const allStylists = await storage.getStylists();
+      const stylist = allStylists.find(s => s.shopifyStaffId === staffId);
+      
+      if (!stylist) {
+        return res.status(404).json({ error: "Stylist not found for this POS account" });
+      }
+      
+      // Check if already clocked in
+      const currentEntry = await storage.getOpenTimeEntry(stylist.id);
+      if (currentEntry) {
+        return res.status(400).json({ error: "Already clocked in", clockedInAt: currentEntry.clockIn });
+      }
+      
+      const entry = await storage.clockIn(stylist.id);
+      console.log(`[POS API] ${stylist.name} clocked in at ${entry.clockIn}`);
+      res.json({ success: true, clockedIn: true, clockInTime: entry.clockIn });
+    } catch (error: any) {
+      console.error("[POS API] Clock in error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // POS Clock Out
+  app.post("/api/pos/clock-out", posCorsMW, async (req, res) => {
+    try {
+      const { staffId } = req.body;
+      
+      if (!staffId) {
+        return res.status(400).json({ error: "staffId is required" });
+      }
+      
+      const allStylists = await storage.getStylists();
+      const stylist = allStylists.find(s => s.shopifyStaffId === staffId);
+      
+      if (!stylist) {
+        return res.status(404).json({ error: "Stylist not found for this POS account" });
+      }
+      
+      const entry = await storage.clockOut(stylist.id);
+      if (!entry) {
+        return res.status(400).json({ error: "Not currently clocked in" });
+      }
+      
+      const clockIn = new Date(entry.clockIn).getTime();
+      const clockOut = new Date(entry.clockOut!).getTime();
+      const hoursWorked = ((clockOut - clockIn) / (1000 * 60 * 60)).toFixed(2);
+      
+      console.log(`[POS API] ${stylist.name} clocked out - worked ${hoursWorked} hours`);
+      res.json({ success: true, clockedIn: false, hoursWorked, entry });
+    } catch (error: any) {
+      console.error("[POS API] Clock out error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+  
+  // POS Clock Status
+  app.get("/api/pos/clock-status", posCorsMW, async (req, res) => {
+    try {
+      const staffId = req.query.staffId as string;
+      
+      if (!staffId) {
+        return res.status(400).json({ error: "staffId query parameter required" });
+      }
+      
+      const allStylists = await storage.getStylists();
+      const stylist = allStylists.find(s => s.shopifyStaffId === staffId);
+      
+      if (!stylist) {
+        return res.json({ found: false });
+      }
+      
+      const currentEntry = await storage.getOpenTimeEntry(stylist.id);
+      
+      if (currentEntry) {
+        const clockIn = new Date(currentEntry.clockIn);
+        const now = new Date();
+        const hoursWorked = ((now.getTime() - clockIn.getTime()) / (1000 * 60 * 60)).toFixed(2);
+        
+        res.json({ 
+          found: true,
+          clockedIn: true, 
+          clockInTime: currentEntry.clockIn,
+          hoursWorked
+        });
+      } else {
+        res.json({ found: true, clockedIn: false });
+      }
+    } catch (error: any) {
+      console.error("[POS API] Clock status error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Admin registration (first user only)
   app.post("/api/admin/register", async (req, res) => {
     try {

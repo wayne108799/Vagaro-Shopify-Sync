@@ -27,6 +27,14 @@ function Extension() {
   var _useState5 = useState('');
   var debugInfo = _useState5[0];
   var setDebugInfo = _useState5[1];
+  
+  var _useState6 = useState(null);
+  var clockStatus = _useState6[0];
+  var setClockStatus = _useState6[1];
+  
+  var _useState7 = useState(false);
+  var clockLoading = _useState7[0];
+  var setClockLoading = _useState7[1];
 
   useEffect(function() {
     fetchSummary();
@@ -41,14 +49,12 @@ function Extension() {
       var staff = null;
       var savedLinkId = null;
       
-      // Check for saved link ID in localStorage
       try {
         savedLinkId = localStorage.getItem('vagaro_stylist_link');
         if (savedLinkId) {
           setDebugInfo('Found saved link: ' + savedLinkId);
         }
       } catch (e) {
-        // localStorage might not be available
       }
       
       try {
@@ -62,7 +68,6 @@ function Extension() {
         setDebugInfo('Staff error: ' + staffErr.message);
       }
       
-      // If no staff ID available, use saved link or fetch stylist list for manual selection
       var url;
       var effectiveStaffId = (staff && staff.id) ? staff.id : savedLinkId;
       
@@ -72,6 +77,7 @@ function Extension() {
       } else {
         setStaffId(effectiveStaffId);
         url = BACKEND_URL + '/api/pos/stylist-summary?staffId=' + effectiveStaffId;
+        fetchClockStatus(effectiveStaffId);
       }
       
       setDebugInfo(function(prev) { return prev + ' | Fetching: ' + url; });
@@ -97,6 +103,69 @@ function Extension() {
     }
   }
 
+  async function fetchClockStatus(id) {
+    try {
+      var response = await fetch(BACKEND_URL + '/api/pos/clock-status?staffId=' + id, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        mode: 'cors'
+      });
+      if (response.ok) {
+        var data = await response.json();
+        setClockStatus(data);
+      }
+    } catch (err) {
+      console.log('Clock status error:', err);
+    }
+  }
+
+  async function handleClockIn() {
+    if (!staffId) return;
+    setClockLoading(true);
+    try {
+      var response = await fetch(BACKEND_URL + '/api/pos/clock-in', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ staffId: staffId })
+      });
+      var data = await response.json();
+      if (response.ok) {
+        shopify.toast.show('Clocked in successfully');
+        setClockStatus({ found: true, clockedIn: true, clockInTime: data.clockInTime, hoursWorked: '0.00' });
+      } else {
+        shopify.toast.show(data.error || 'Failed to clock in');
+      }
+    } catch (err) {
+      shopify.toast.show('Failed to clock in');
+    } finally {
+      setClockLoading(false);
+    }
+  }
+
+  async function handleClockOut() {
+    if (!staffId) return;
+    setClockLoading(true);
+    try {
+      var response = await fetch(BACKEND_URL + '/api/pos/clock-out', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ staffId: staffId })
+      });
+      var data = await response.json();
+      if (response.ok) {
+        shopify.toast.show('Clocked out - ' + data.hoursWorked + ' hours');
+        setClockStatus({ found: true, clockedIn: false });
+        fetchSummary();
+      } else {
+        shopify.toast.show(data.error || 'Failed to clock out');
+      }
+    } catch (err) {
+      shopify.toast.show('Failed to clock out');
+    } finally {
+      setClockLoading(false);
+    }
+  }
+
   async function linkStylist(stylistId) {
     try {
       var response = await fetch(BACKEND_URL + '/api/pos/link-stylist', {
@@ -108,13 +177,11 @@ function Extension() {
       if (!response.ok) throw new Error('Failed to link');
       
       var data = await response.json();
-      // Store the link ID for future lookups
       if (data.linkId) {
         try {
           localStorage.setItem('vagaro_stylist_link', data.linkId);
           setStaffId(data.linkId);
         } catch (e) {
-          // localStorage might not be available
         }
       }
       
@@ -151,6 +218,17 @@ function Extension() {
     } catch (err) {
       shopify.toast.show('Failed to add to cart');
     }
+  }
+
+  function formatTime(isoString) {
+    if (!isoString) return '';
+    var d = new Date(isoString);
+    var hours = d.getHours();
+    var mins = d.getMinutes();
+    var ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    return hours + ':' + (mins < 10 ? '0' : '') + mins + ' ' + ampm;
   }
 
   if (loading) {
@@ -213,14 +291,45 @@ function Extension() {
         
         h('s-card', null,
           h('s-box', { padding: 'base' },
-            h('s-text', { variant: 'headingMedium' }, "Today's Earnings"),
-            h('s-box', { paddingBlockStart: 'tight' },
-              h('s-text', { variant: 'headingLarge' }, '$' + today.totalEarnings)
-            ),
-            h('s-box', { paddingBlockStart: 'tight' },
-              h('s-text', null, 'Sales: $' + today.sales + ' | Tips: $' + today.tips),
-              h('s-text', null, 'Commission: $' + today.commission + ' (' + stylist.commissionRate + '%)'),
-              h('s-text', null, today.paidOrders + ' paid, ' + today.pendingOrders + ' pending')
+            h('s-text', { variant: 'headingMedium' }, 'Time Clock'),
+            clockStatus && clockStatus.clockedIn
+              ? h('s-box', { paddingBlockStart: 'tight' },
+                  h('s-badge', { status: 'success' }, 'Clocked In'),
+                  h('s-text', null, 'Since ' + formatTime(clockStatus.clockInTime)),
+                  h('s-text', null, clockStatus.hoursWorked + ' hours today'),
+                  h('s-box', { paddingBlockStart: 'tight' },
+                    h('s-button', { 
+                      onClick: handleClockOut, 
+                      disabled: clockLoading,
+                      kind: 'destructive'
+                    }, clockLoading ? 'Processing...' : 'Clock Out')
+                  )
+                )
+              : h('s-box', { paddingBlockStart: 'tight' },
+                  h('s-badge', { status: 'neutral' }, 'Clocked Out'),
+                  h('s-box', { paddingBlockStart: 'tight' },
+                    h('s-button', { 
+                      onClick: handleClockIn, 
+                      disabled: clockLoading,
+                      kind: 'primary'
+                    }, clockLoading ? 'Processing...' : 'Clock In')
+                  )
+                )
+          )
+        ),
+        
+        h('s-box', { paddingBlockStart: 'base' },
+          h('s-card', null,
+            h('s-box', { padding: 'base' },
+              h('s-text', { variant: 'headingMedium' }, "Today's Earnings"),
+              h('s-box', { paddingBlockStart: 'tight' },
+                h('s-text', { variant: 'headingLarge' }, '$' + today.totalEarnings)
+              ),
+              h('s-box', { paddingBlockStart: 'tight' },
+                h('s-text', null, 'Sales: $' + today.sales + ' | Tips: $' + today.tips),
+                h('s-text', null, 'Commission: $' + today.commission + ' (' + stylist.commissionRate + '%)'),
+                h('s-text', null, today.paidOrders + ' paid, ' + today.pendingOrders + ' pending')
+              )
             )
           )
         ),
