@@ -1486,17 +1486,23 @@ export async function registerRoutes(
     try {
       const { stylistId, shopifyStaffId } = req.body;
       
-      if (!stylistId || !shopifyStaffId) {
-        return res.status(400).json({ error: "stylistId and shopifyStaffId required" });
+      console.log(`[POS API] Link request: stylistId=${stylistId}, shopifyStaffId=${shopifyStaffId}`);
+      
+      if (!stylistId) {
+        return res.status(400).json({ error: "stylistId is required" });
       }
       
-      const stylist = await storage.updateStylist(stylistId, { shopifyStaffId });
+      // If no shopifyStaffId provided, generate a unique device-based ID
+      // This allows linking on devices where staff ID isn't available
+      const linkId = shopifyStaffId || `device-${Date.now()}`;
+      
+      const stylist = await storage.updateStylist(stylistId, { shopifyStaffId: linkId });
       if (!stylist) {
         return res.status(404).json({ error: "Stylist not found" });
       }
       
-      console.log(`[POS API] Linked stylist ${stylist.name} to Shopify staff ID ${shopifyStaffId}`);
-      res.json({ success: true, stylist: { id: stylist.id, name: stylist.name } });
+      console.log(`[POS API] Linked stylist ${stylist.name} to ID: ${linkId}`);
+      res.json({ success: true, stylist: { id: stylist.id, name: stylist.name }, linkId });
     } catch (error: any) {
       console.error("[POS API] Error linking stylist:", error);
       res.status(500).json({ error: error.message });
