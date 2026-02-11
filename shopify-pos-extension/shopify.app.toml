@@ -2,15 +2,15 @@
 # Learn more: https://shopify.dev/docs/apps/tools/cli/configuration
 
 name = "Vagaro POS Sync"
-client_id = "YOUR_CLIENT_ID"
-application_url = "https://YOUR_REPLIT_URL"
+client_id = "f30d6a8a468eab7feafdf9af37954918"
+application_url = "https://Beautyoasisadmin.replit.app"
 embedded = true
 
 [access_scopes]
 scopes = "read_orders,write_orders,read_draft_orders,write_draft_orders,read_products,read_customers"
 
 [auth]
-redirect_urls = ["https://YOUR_REPLIT_URL/api/auth/callback"]
+redirect_urls = ["https://Beautyoasisadmin.replit.app/api/auth/callback"]
 
 [webhooks]
 api_version = "2024-10"
