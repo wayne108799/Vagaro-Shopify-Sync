@@ -1,0 +1,85 @@
+
+PS C:\dev\Vagaro-Shopify-Sync\shopify-pos-extension> cd ..
+PS C:\dev\Vagaro-Shopify-Sync> git pull
+remote: Enumerating objects: 23, done.
+remote: Counting objects: 100% (23/23), done.
+remote: Compressing objects: 100% (3/3), done.
+remote: Total 12 (delta 8), reused 12 (delta 8), pack-reused 0 (from 0)
+Unpacking objects: 100% (12/12), 2.79 KiB | 46.00 KiB/s, done.
+From https://github.com/wayne108799/Vagaro-Shopify-Sync
+   25ba914..963401a  main       -> origin/main
+Updating 25ba914..963401a
+error: Your local changes to the following files would be overwritten by merge:
+        shopify-pos-extension/extensions/vagaro-appointments/shopify.extension.toml
+Please commit your changes or stash them before you merge.
+Aborting
+PS C:\dev\Vagaro-Shopify-Sync> git stash
+warning: in the working copy of 'shopify-pos-extension/extensions/vagaro-appointments/shopify.extension.toml', LF will be replaced by CRLF the next time Git touches it
+Saved working directory and index state WIP on main: 25ba914 Update API version for POS extensions to ensure compatibility
+PS C:\dev\Vagaro-Shopify-Sync> git pull
+Updating 25ba914..963401a
+Fast-forward
+ .../extensions/vagaro-appointments/package.json    |   4 +-
+ .../vagaro-appointments/shopify.extension.toml     |   2 +-
+ .../extensions/vagaro-appointments/src/Modal.js    |  83 ++++----
+ .../vagaro-appointments/src/StylistModal.js        | 214 +++++++++------------
+ .../vagaro-appointments/src/StylistTile.js         |  52 +++--
+ .../extensions/vagaro-appointments/src/Tile.js     |  10 +-
+ 6 files changed, 174 insertions(+), 191 deletions(-)
+PS C:\dev\Vagaro-Shopify-Sync> cd shopify-pos-extension/extensions/vagaro-appointments
+PS C:\dev\Vagaro-Shopify-Sync\shopify-pos-extension\extensions\vagaro-appointments> npm install
+
+added 25 packages, removed 4 packages, changed 1 package, and audited 28 packages in 40s
+
+5 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+PS C:\dev\Vagaro-Shopify-Sync\shopify-pos-extension\extensions\vagaro-appointments> cd ../..
+PS C:\dev\Vagaro-Shopify-Sync\shopify-pos-extension> npm run shopify app deploy
+
+> vagaro-pos-extension@1.0.0 shopify
+> shopify app deploy
+
+╭─ info ───────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│  Using shopify.app.toml for default values:                                  │
+│                                                                              │
+│    • Org:             Quantum Technology & Event Solutions                   │
+│    • App:             Vagaro POS Sync                                        │
+│                                                                              │
+│   You can pass `--reset` to your command to reset your app configuration.    │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+?  Release a new version of Vagaro POS Sync?
+✔  Yes, release this new version
+
+
+Releasing a new app version as part of Vagaro POS Sync
+
+vagaro-appointments │ Bundling UI extension vagaro-appointments...
+   stylist-earnings │ Bundling UI extension stylist-earnings...
+
+✘ ✘ [[ERRORERROR] ]Could not resolve "@preact/signals"
+
+    extensions/vagaro-appointments/node_modules/@shopify/ui-extensions/build/esm/preact.mjs:1:23:
+Could not resolve "@preact/signals"      1 │ import { Signal } from
+
+    extensions/vagaro-appointments/node_modules/@shopify/ui-extensions/build/esm/preact.mjs:1:23:
+'@preact/signals'      1 │ import { Signal } from ;
+        ╵                        '@preact/signals'~~~~~~~~~~~~~~~~~;
+        ╵
+
+  You can mark the path "@preact/signals" as external to exclude it from the bundle, which will
+  remove this error and leave the unresolved path in the bundle.
+
+~~~~~~~~~~~~~~~~~
+
+  You can mark the path "@preact/signals" as external to exclude it from the bundle, which will
+  remove this error and leave the unresolved path in the bundle.
+
+╭─ error ──────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│  Failed to bundle extension stylist-earnings. Please check the extension     │
+│  source code for errors. 
