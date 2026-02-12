@@ -1,0 +1,32 @@
+2026-02-11 23:22:17.23
+91ce6254
+User
+6:22:17 AM [express] OPTIONS /api/pos/stylist-summary 204 in 2ms
+2026-02-11 23:22:17.23
+91ce6254
+User
+6:22:17 AM [express] OPTIONS /api/pos/stylist-summary 204 in 2ms
+2026-02-11 23:22:17.49
+91ce6254
+User
+[POS API] Fetching stylist summary for staff ID: unknown
+2026-02-11 23:22:17.49
+91ce6254
+User
+[POS API] Fetching stylist summary for staff ID: unknown
+2026-02-11 23:22:18.14
+91ce6254
+User
+[POS API] No stylist found for staff ID: unknown
+2026-02-11 23:22:18.14
+91ce6254
+User
+[POS API] No stylist found for staff ID: unknown
+2026-02-11 23:22:18.15
+91ce6254
+User
+6:22:18 AM [express] GET /api/pos/stylist-summary 304 in 652ms :: {"found":false,"message":"Stylist not linked to this POS account","availableStylists":[{"id":"d4dd93bc-167e-4fd0-8d4d-94f03e102538","name":"Amber Heiselt","hasShopifyLink":true},{"id":"d386eae8-a7f0-4eaf-bbbf-0c1eaa42c0a5","name":"Booth Rental","hasShopifyLink":false},{"id":"13be0bee-549c-4281-99c8-dd65aa957dce","name":"Brandy Lamb","hasShopifyLink":false},{"id":"8a69a23a-dfae-470f-bf47-81f41a051653","name":"Brinlee Beath","hasShopifyLink":false},{"id":"cdf22545-ed2d-4d5a-a106-570bf169ec30","name":"Kiana Hamblin","hasShopifyLink":true},{"id":"7ca24e8f-04a2-46ee-a110-75565e2a7b57","name":"Nisha Boren","hasShopifyLink":false}]}
+2026-02-11 23:22:18.15
+91ce6254
+User
+6:22:18 AM [express] GET /api/pos/stylist-summary 304 in 652ms :: {"found":false,"message":"Stylist not linked to this POS account","availableStylists":[{"id":"d4dd93bc-167e-4fd0-8d4d-94f03e102538","name":"Amber Heiselt","hasShopifyLink":true},{"id":"d386eae8-a7f0-4eaf-bbbf-0c1eaa42c0a5","name":"Booth Rental","hasShopifyLink":false},{"id":"13be0bee-549c-4281-99c8-dd65aa957dce","name":"Brandy Lamb","hasShopifyLink":false},{"id":"8a69a23a-dfae-470f-bf47-81f41a051653","name":"Brinlee Beath","hasShopifyLink":false},{"id":"cdf22545-ed2d-4d5a-a106-570bf169ec30","name":"Kiana Hamblin","hasShopifyLink":true},{"id":"7ca24e8f-04a2-46ee-a110-75565e2a7b57","name":"Nisha Boren","hasShopifyLink":false}]}

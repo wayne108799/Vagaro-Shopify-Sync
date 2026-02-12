@@ -1,9 +1,9 @@
-import { Tile, Text, extension } from '@shopify/ui-extensions/point-of-sale';
+import { Tile, extension } from '@shopify/ui-extensions/point-of-sale';
 
 const BACKEND_URL = 'https://Beautyoasisadmin.replit.app';
 
 export default extension('pos.home.tile.render', (root, api) => {
-  const tile = root.createComponent(Tile, {
+  var tile = root.createComponent(Tile, {
     title: 'My Earnings',
     subtitle: 'Loading...',
     enabled: false,
@@ -14,52 +14,30 @@ export default extension('pos.home.tile.render', (root, api) => {
 
   async function fetchSummary() {
     try {
-      var staff = null;
+      var staffId = 'unknown';
       try {
-        staff = await api.staff.getCurrent();
+        var staff = await api.session.currentStaff;
+        if (staff && staff.id) staffId = staff.id;
       } catch (e) {}
 
-      var staffParam = (staff && staff.id) ? staff.id : 'unknown';
-
-      var response = await fetch(BACKEND_URL + '/api/pos/stylist-summary?staffId=' + staffParam, {
+      var response = await fetch(BACKEND_URL + '/api/pos/stylist-summary?staffId=' + staffId, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
         mode: 'cors'
       });
 
-      if (!response.ok) throw new Error('Failed to fetch');
+      if (!response.ok) throw new Error('Failed');
       var data = await response.json();
 
       if (!data.found) {
-        tile.updateProps({
-          title: 'My Earnings',
-          subtitle: 'Not linked',
-          enabled: true,
-          onPress: () => { api.action.presentModal(); }
-        });
+        tile.updateProps({ title: 'My Earnings', subtitle: 'Not linked - tap to setup', enabled: true, onPress: function() { api.action.presentModal(); } });
         return;
       }
 
-      var todayEarnings = data.today ? '$' + data.today.totalEarnings : '$0';
-      var pendingCount = data.today ? data.today.pendingOrders : 0;
-      var subtitle = todayEarnings + ' today';
-      if (pendingCount > 0) {
-        subtitle = subtitle + ' (' + pendingCount + ' pending)';
-      }
-
-      tile.updateProps({
-        title: data.stylist.name,
-        subtitle: subtitle,
-        enabled: true,
-        onPress: () => { api.action.presentModal(); }
-      });
+      var sub = '$' + (data.today ? data.today.totalEarnings : '0') + ' today';
+      tile.updateProps({ title: data.stylist.name, subtitle: sub, enabled: true, onPress: function() { api.action.presentModal(); } });
     } catch (err) {
-      tile.updateProps({
-        title: 'My Earnings',
-        subtitle: 'Tap to retry',
-        enabled: true,
-        onPress: () => { fetchSummary(); }
-      });
+      tile.updateProps({ title: 'My Earnings', subtitle: 'Tap to retry', enabled: true, onPress: fetchSummary });
     }
   }
 
