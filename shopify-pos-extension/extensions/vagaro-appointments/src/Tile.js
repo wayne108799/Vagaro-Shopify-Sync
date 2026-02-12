@@ -1,15 +1,14 @@
-import '@shopify/ui-extensions/preact';
-import { render, h } from 'preact';
+import { Tile, extension } from '@shopify/ui-extensions/point-of-sale';
 
-export default function extension() {
-  render(h(Extension), document.body);
-}
-
-function Extension() {
-  return h('s-tile', {
+export default extension('pos.home.tile.render', (root, api) => {
+  const tile = root.createComponent(Tile, {
     title: 'Vagaro Appointments',
     subtitle: 'View pending appointments',
-    onPress: function() { shopify.action.presentModal(); },
-    enabled: true
+    enabled: true,
+    onPress: () => {
+      api.action.presentModal();
+    },
   });
-}
+
+  root.append(tile);
+});
