@@ -1,0 +1,58 @@
+PS C:\dev\Vagaro-Shopify-Sync\shopify-pos-extension> git pull
+Already up to date.
+PS C:\dev\Vagaro-Shopify-Sync\shopify-pos-extension> cd ..
+PS C:\dev\Vagaro-Shopify-Sync> cd shopify-pos-extension/extensions/vagaro-appointments
+PS C:\dev\Vagaro-Shopify-Sync\shopify-pos-extension\extensions\vagaro-appointments> npm install
+
+up to date, audited 7 packages in 2s
+
+1 package is looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+PS C:\dev\Vagaro-Shopify-Sync\shopify-pos-extension\extensions\vagaro-appointments> cd ../..
+PS C:\dev\Vagaro-Shopify-Sync\shopify-pos-extension> npm run shopify app deploy
+
+> vagaro-pos-extension@1.0.0 shopify
+> shopify app deploy
+
+╭─ info ───────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│  Using shopify.app.toml for default values:                                  │
+│                                                                              │
+│    • Org:             Quantum Technology & Event Solutions                   │
+│    • App:             VagaroSync                                             │
+│                                                                              │
+│   You can pass `--reset` to your command to reset your app configuration.    │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+?  Release a new version of VagaroSync?
+✔  Yes, release this new version
+
+
+Releasing a new app version as part of VagaroSync
+
+vagaro-appointments │ Bundling UI extension vagaro-appointments...
+   stylist-earnings │ Bundling UI extension stylist-earnings...
+vagaro-appointments │ vagaro-appointments successfully built
+   stylist-earnings │ stylist-earnings successfully built
+
+
+╭─ error ──────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│  Version couldn't be created.                                                │
+│                                                                              │
+│  vagaro-appointments                                                         │
+│                                                                              │
+│  Validation errors                                                           │
+│    • api_version: "2024-10" is not a valid API version: Pos ui requires one  │
+│      of ["2025-04", "2025-07", "2025-10", "2026-01", "2026-04", "unstable",  │
+│      "internal"]                                                             │
+│                                                                              │
+│  stylist-earnings                                                            │
+│                                                                              │
+│  Validation errors                                                           │
+│    • api_version: "2024-10" is not a valid API version: Pos ui requires one  │
+│      of ["2025-04", "2025-07", "2025-10", "2026-01", "2026-04", "unstable",  │
+│      "internal"]    
