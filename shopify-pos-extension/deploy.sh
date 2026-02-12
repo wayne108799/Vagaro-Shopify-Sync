@@ -18,7 +18,7 @@ npm install
 echo ""
 
 echo "Step 4: Deploying to Shopify..."
-echo "y" | npx shopify app deploy
+npx shopify app deploy --force
 echo ""
 
 echo "=== Deploy Complete ==="
