@@ -9,18 +9,41 @@ import StylistLogin from "@/pages/stylist-login";
 import StylistDashboard from "@/pages/stylist-dashboard";
 import NotFound from "@/pages/not-found";
 
+function isShopifyEmbed() {
+  const params = new URLSearchParams(window.location.search);
+  return !!(params.get("shop") || params.get("host") || params.get("hmac") || window.top !== window.self);
+}
+
 function ProtectedDashboard() {
-  const { data: admin, isLoading, error } = useQuery({
+  const shopifyEmbed = isShopifyEmbed();
+
+  const { data: admin, isLoading, error, refetch } = useQuery({
     queryKey: ["admin", "me"],
     queryFn: async () => {
-      const res = await fetch("/api/admin/me");
+      const res = await fetch("/api/admin/me", { credentials: "include" });
       if (!res.ok) throw new Error("Not authenticated");
       return res.json();
     },
     retry: false,
   });
 
-  if (isLoading) {
+  const { data: shopifyAuth, isLoading: shopifyAuthLoading } = useQuery({
+    queryKey: ["admin", "shopify-auth"],
+    queryFn: async () => {
+      const params = new URLSearchParams(window.location.search);
+      const shop = params.get("shop") || "";
+      const host = params.get("host") || "";
+      const res = await fetch(`/api/admin/shopify-auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Shopify auth failed");
+      const data = await res.json();
+      await refetch();
+      return data;
+    },
+    enabled: shopifyEmbed && !admin && !isLoading,
+    retry: false,
+  });
+
+  if (isLoading || (shopifyEmbed && shopifyAuthLoading && !admin)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-lg text-gray-500">Loading...</div>

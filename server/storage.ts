@@ -47,6 +47,7 @@ export { getPayPeriod };
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
   hasAnyUsers(): Promise<boolean>;
   
@@ -120,6 +121,10 @@ export class DatabaseStorage implements IStorage {
   async getUserByUsername(username: string): Promise<User | undefined> {
     const result = await db.select().from(users).where(sql`lower(${users.username}) = lower(${username})`).limit(1);
     return result[0];
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users);
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {

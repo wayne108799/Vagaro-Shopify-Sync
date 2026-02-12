@@ -1234,6 +1234,54 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/admin/shopify-auth", async (req, res) => {
+    try {
+      const { shop, host } = req.query;
+      if (!shop && !host) {
+        return res.status(400).json({ error: "Not a Shopify embedded request" });
+      }
+
+      const referer = req.headers.referer || req.headers.origin || '';
+      const isFromShopify = referer.includes('shopify.com') || referer.includes('myshopify.com');
+      if (!isFromShopify) {
+        console.log(`[Admin] Shopify auth rejected - invalid referer: ${referer}`);
+        return res.status(403).json({ error: "Request must originate from Shopify admin" });
+      }
+
+      const settings = await storage.getSettings();
+      if (!settings || !settings.shopifyStoreUrl) {
+        return res.status(403).json({ error: "Shopify store not configured in settings" });
+      }
+
+      const configuredShop = settings.shopifyStoreUrl
+        .replace(/^https?:\/\//, '')
+        .replace(/\/$/, '')
+        .replace('.myshopify.com', '')
+        .toLowerCase();
+
+      if (shop) {
+        const shopParam = (shop as string).replace('.myshopify.com', '').toLowerCase();
+        if (shopParam !== configuredShop) {
+          console.log(`[Admin] Shopify auth rejected - shop mismatch: ${shopParam} vs ${configuredShop}`);
+          return res.status(403).json({ error: "Shop does not match configured store" });
+        }
+      }
+
+      const users = await storage.getAllUsers();
+      if (!users || users.length === 0) {
+        return res.status(404).json({ error: "No admin users exist" });
+      }
+
+      const adminUser = users[0];
+      req.session.adminId = adminUser.id;
+      req.session.adminUsername = adminUser.username;
+      console.log(`[Admin] Auto-authenticated via Shopify embed for shop: ${shop}`);
+      res.json({ message: "Authenticated via Shopify", user: { id: adminUser.id, username: adminUser.username } });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ========================================
   // POS Extension API Endpoints
   // ========================================
@@ -1394,7 +1442,7 @@ export async function registerRoutes(
             .map(s => ({
               id: s.id,
               name: s.name,
-              hasShopifyLink: !!s.shopifyStaffId
+              hasShopifyLink: false
             }))
         });
       }
@@ -1492,9 +1540,16 @@ export async function registerRoutes(
         return res.status(400).json({ error: "stylistId is required" });
       }
       
-      // If no shopifyStaffId provided, generate a unique device-based ID
-      // This allows linking on devices where staff ID isn't available
       const linkId = shopifyStaffId || `device-${Date.now()}`;
+      
+      // Clear any existing link to this staff ID from other stylists
+      const allStylists = await storage.getStylists();
+      for (const s of allStylists) {
+        if (s.shopifyStaffId === linkId && s.id !== stylistId) {
+          await storage.updateStylist(s.id, { shopifyStaffId: null });
+          console.log(`[POS API] Cleared old link from stylist ${s.name}`);
+        }
+      }
       
       const stylist = await storage.updateStylist(stylistId, { shopifyStaffId: linkId });
       if (!stylist) {
@@ -1607,6 +1662,24 @@ export async function registerRoutes(
       }
     } catch (error: any) {
       console.error("[POS API] Clock status error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin endpoint to clear all POS staff links
+  app.post("/api/admin/clear-pos-links", requireAdmin, async (req, res) => {
+    try {
+      const allStylists = await storage.getStylists();
+      let cleared = 0;
+      for (const s of allStylists) {
+        if (s.shopifyStaffId) {
+          await storage.updateStylist(s.id, { shopifyStaffId: null });
+          cleared++;
+        }
+      }
+      console.log(`[Admin] Cleared ${cleared} POS staff links`);
+      res.json({ success: true, cleared });
+    } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });

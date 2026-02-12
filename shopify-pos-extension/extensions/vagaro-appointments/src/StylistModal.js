@@ -124,9 +124,7 @@ function StylistModalComponent() {
         stylists.map(function(s) {
           return h('s-box', { key: s.id, padding: 'base' },
             h('s-text', { variant: 'headingMd' }, s.name),
-            s.hasShopifyLink
-              ? h('s-text', null, '(Already linked)')
-              : h('s-button', { onClick: function() { linkStylist(s.id); } }, 'This is me')
+            h('s-button', { onClick: function() { linkStylist(s.id); } }, 'This is me')
           );
         })
       ))
