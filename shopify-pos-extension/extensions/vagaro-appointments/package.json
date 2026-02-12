@@ -2,6 +2,6 @@
   "name": "vagaro-appointments-extension",
   "version": "1.0.0",
   "dependencies": {
-    "@shopify/ui-extensions": "2025.4.x"
+    "@shopify/ui-extensions": "2024.4.x"
   }
 }
