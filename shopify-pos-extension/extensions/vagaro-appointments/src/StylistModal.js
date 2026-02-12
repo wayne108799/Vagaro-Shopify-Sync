@@ -18,19 +18,24 @@ function StylistModalComponent() {
 
   useEffect(function() { fetchSummary(); }, []);
 
-  async function fetchSummary() {
-    setLoading(true); setError(null);
-    try {
+  function getEffectiveStaffId() {
+    return new Promise(function(resolve) {
       var savedLink = null;
       try { savedLink = localStorage.getItem('vagaro_stylist_link'); } catch (e) {}
 
-      var sid = null;
       try {
-        var staff = await shopify.staff.current();
-        if (staff && staff.id) sid = staff.id;
-      } catch (e) {}
+        shopify.staff.current().then(function(staff) {
+          if (staff && staff.id) resolve(staff.id);
+          else resolve(savedLink);
+        }).catch(function() { resolve(savedLink); });
+      } catch (e) { resolve(savedLink); }
+    });
+  }
 
-      var effectiveId = sid || savedLink;
+  async function fetchSummary(overrideStaffId) {
+    setLoading(true); setError(null);
+    try {
+      var effectiveId = overrideStaffId || await getEffectiveStaffId();
       setStaffId(effectiveId);
 
       var url = BACKEND_URL + '/api/pos/stylist-summary?staffId=' + (effectiveId || 'unknown');
@@ -75,12 +80,19 @@ function StylistModalComponent() {
 
   async function linkStylist(stylistId) {
     try {
-      var r = await fetch(BACKEND_URL + '/api/pos/link-stylist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stylistId: stylistId, shopifyStaffId: staffId }) });
+      var currentId = await getEffectiveStaffId();
+      var sendId = currentId || 'unknown';
+
+      var r = await fetch(BACKEND_URL + '/api/pos/link-stylist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stylistId: stylistId, shopifyStaffId: sendId }) });
       if (!r.ok) throw new Error('Failed');
       var d = await r.json();
-      if (d.linkId) { try { localStorage.setItem('vagaro_stylist_link', d.linkId); setStaffId(d.linkId); } catch (e) {} }
+
+      var newLinkId = d.linkId || sendId;
+      try { localStorage.setItem('vagaro_stylist_link', newLinkId); } catch (e) {}
+      setStaffId(newLinkId);
+
       shopify.toast.show('Account linked!');
-      fetchSummary();
+      fetchSummary(newLinkId);
     } catch (e) { shopify.toast.show('Failed to link'); }
   }
 
@@ -110,7 +122,7 @@ function StylistModalComponent() {
     return h('s-page', { title: 'My Earnings' },
       h('s-scroll-box', null, h('s-box', { padding: 'base' },
         h('s-banner', { status: 'critical', title: 'Error' }, error),
-        h('s-button', { onClick: fetchSummary }, 'Retry')
+        h('s-button', { onClick: function() { fetchSummary(); } }, 'Retry')
       ))
     );
   }
@@ -178,7 +190,7 @@ function StylistModalComponent() {
         })
       )) : null,
 
-      h('s-button', { onClick: fetchSummary }, 'Refresh')
+      h('s-button', { onClick: function() { fetchSummary(); } }, 'Refresh')
     ))
   );
 }
