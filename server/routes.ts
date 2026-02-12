@@ -1241,13 +1241,6 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Not a Shopify embedded request" });
       }
 
-      const referer = req.headers.referer || req.headers.origin || '';
-      const isFromShopify = referer.includes('shopify.com') || referer.includes('myshopify.com');
-      if (!isFromShopify) {
-        console.log(`[Admin] Shopify auth rejected - invalid referer: ${referer}`);
-        return res.status(403).json({ error: "Request must originate from Shopify admin" });
-      }
-
       const settings = await storage.getSettings();
       if (!settings || !settings.shopifyStoreUrl) {
         return res.status(403).json({ error: "Shopify store not configured in settings" });
@@ -1259,12 +1252,30 @@ export async function registerRoutes(
         .replace('.myshopify.com', '')
         .toLowerCase();
 
+      let verified = false;
+
       if (shop) {
         const shopParam = (shop as string).replace('.myshopify.com', '').toLowerCase();
-        if (shopParam !== configuredShop) {
+        if (shopParam === configuredShop) {
+          verified = true;
+        } else {
           console.log(`[Admin] Shopify auth rejected - shop mismatch: ${shopParam} vs ${configuredShop}`);
           return res.status(403).json({ error: "Shop does not match configured store" });
         }
+      }
+
+      if (!verified && host) {
+        try {
+          const decoded = Buffer.from(host as string, 'base64').toString('utf-8');
+          if (decoded.includes(configuredShop) || decoded.includes('admin.shopify.com')) {
+            verified = true;
+          }
+        } catch (e) {}
+      }
+
+      if (!verified) {
+        console.log(`[Admin] Shopify auth rejected - could not verify shop=${shop} host=${host}`);
+        return res.status(403).json({ error: "Could not verify Shopify origin" });
       }
 
       const users = await storage.getAllUsers();

@@ -1,6 +1,7 @@
+import { useState, useEffect } from "react";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "@/pages/dashboard";
@@ -15,35 +16,41 @@ function isShopifyEmbed() {
 }
 
 function ProtectedDashboard() {
-  const shopifyEmbed = isShopifyEmbed();
+  const [state, setState] = useState<"loading" | "authenticated" | "unauthenticated">("loading");
 
-  const { data: admin, isLoading, error, refetch } = useQuery({
-    queryKey: ["admin", "me"],
-    queryFn: async () => {
-      const res = await fetch("/api/admin/me", { credentials: "include" });
-      if (!res.ok) throw new Error("Not authenticated");
-      return res.json();
-    },
-    retry: false,
-  });
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const meRes = await fetch("/api/admin/me", { credentials: "include" });
+        if (meRes.ok) {
+          setState("authenticated");
+          return;
+        }
+      } catch (e) {}
 
-  const { data: shopifyAuth, isLoading: shopifyAuthLoading } = useQuery({
-    queryKey: ["admin", "shopify-auth"],
-    queryFn: async () => {
-      const params = new URLSearchParams(window.location.search);
-      const shop = params.get("shop") || "";
-      const host = params.get("host") || "";
-      const res = await fetch(`/api/admin/shopify-auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Shopify auth failed");
-      const data = await res.json();
-      await refetch();
-      return data;
-    },
-    enabled: shopifyEmbed && !admin && !isLoading,
-    retry: false,
-  });
+      if (isShopifyEmbed()) {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const shop = params.get("shop") || "";
+          const host = params.get("host") || "";
+          const authRes = await fetch(
+            `/api/admin/shopify-auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+            { credentials: "include" }
+          );
+          if (authRes.ok) {
+            setState("authenticated");
+            return;
+          }
+        } catch (e) {}
+      }
 
-  if (isLoading || (shopifyEmbed && shopifyAuthLoading && !admin)) {
+      setState("unauthenticated");
+    }
+
+    checkAuth();
+  }, []);
+
+  if (state === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-lg text-gray-500">Loading...</div>
@@ -51,7 +58,7 @@ function ProtectedDashboard() {
     );
   }
 
-  if (error || !admin) {
+  if (state === "unauthenticated") {
     return <AdminLogin />;
   }
 
