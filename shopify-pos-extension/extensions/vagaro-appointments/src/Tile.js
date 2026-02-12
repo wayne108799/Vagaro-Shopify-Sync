@@ -1,17 +1,15 @@
 import '@shopify/ui-extensions/preact';
-import { render } from 'preact';
+import { render, h } from 'preact';
 
 export default function extension() {
-  render(<TileComponent />, document.body);
+  render(h(TileComponent), document.body);
 }
 
 function TileComponent() {
-  return (
-    <s-tile
-      title="Vagaro Appointments"
-      subtitle="View pending appointments"
-      enabled
-      onClick={() => shopify.action.presentModal()}
-    />
-  );
+  return h('s-tile', {
+    title: 'Vagaro Appointments',
+    subtitle: 'View pending appointments',
+    enabled: true,
+    onClick: function() { shopify.action.presentModal(); }
+  });
 }

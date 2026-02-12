@@ -1,11 +1,11 @@
 import '@shopify/ui-extensions/preact';
-import { render } from 'preact';
+import { render, h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 
 var BACKEND_URL = 'https://Beautyoasisadmin.replit.app';
 
 export default function extension() {
-  render(<StylistTileComponent />, document.body);
+  render(h(StylistTileComponent), document.body);
 }
 
 function StylistTileComponent() {
@@ -47,12 +47,10 @@ function StylistTileComponent() {
     }
   }
 
-  return (
-    <s-tile
-      title={tileProps.title}
-      subtitle={tileProps.subtitle}
-      enabled={tileProps.enabled}
-      onClick={() => shopify.action.presentModal()}
-    />
-  );
+  return h('s-tile', {
+    title: tileProps.title,
+    subtitle: tileProps.subtitle,
+    enabled: tileProps.enabled,
+    onClick: function() { shopify.action.presentModal(); }
+  });
 }

@@ -1,24 +1,19 @@
 import '@shopify/ui-extensions/preact';
-import { render } from 'preact';
+import { render, h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 
 var BACKEND_URL = 'https://Beautyoasisadmin.replit.app';
 
 export default function extension() {
-  render(<ModalComponent />, document.body);
+  render(h(ModalComponent), document.body);
 }
 
 function ModalComponent() {
-  var _s1 = useState(true);
-  var loading = _s1[0]; var setLoading = _s1[1];
-  var _s2 = useState([]);
-  var appointments = _s2[0]; var setAppointments = _s2[1];
-  var _s3 = useState(null);
-  var error = _s3[0]; var setError = _s3[1];
-  var _s4 = useState('manager');
-  var viewMode = _s4[0]; var setViewMode = _s4[1];
-  var _s5 = useState(null);
-  var stylistName = _s5[0]; var setStylistName = _s5[1];
+  var _s1 = useState(true); var loading = _s1[0]; var setLoading = _s1[1];
+  var _s2 = useState([]); var appointments = _s2[0]; var setAppointments = _s2[1];
+  var _s3 = useState(null); var error = _s3[0]; var setError = _s3[1];
+  var _s4 = useState('manager'); var viewMode = _s4[0]; var setViewMode = _s4[1];
+  var _s5 = useState(null); var stylistName = _s5[0]; var setStylistName = _s5[1];
 
   useEffect(function() { fetchAppointments(); }, []);
 
@@ -64,56 +59,56 @@ function ModalComponent() {
   var pageTitle = viewMode === 'stylist' && stylistName ? stylistName + "'s Appointments" : "Today's Appointments";
 
   if (loading) {
-    return <s-page title={pageTitle}><s-scroll-box><s-box padding="base"><s-text>Loading appointments...</s-text></s-box></s-scroll-box></s-page>;
+    return h('s-page', { title: pageTitle },
+      h('s-scroll-box', null,
+        h('s-box', { padding: 'base' },
+          h('s-text', null, 'Loading appointments...')
+        )
+      )
+    );
   }
 
   if (error) {
-    return (
-      <s-page title={pageTitle}>
-        <s-scroll-box>
-          <s-box padding="base">
-            <s-banner status="critical" title="Error">{error}</s-banner>
-            <s-button onClick={fetchAppointments}>Retry</s-button>
-          </s-box>
-        </s-scroll-box>
-      </s-page>
+    return h('s-page', { title: pageTitle },
+      h('s-scroll-box', null,
+        h('s-box', { padding: 'base' },
+          h('s-banner', { status: 'critical', title: 'Error' }, error),
+          h('s-button', { onClick: fetchAppointments }, 'Retry')
+        )
+      )
     );
   }
 
   if (appointments.length === 0) {
-    return (
-      <s-page title={pageTitle}>
-        <s-scroll-box>
-          <s-box padding="base">
-            <s-text>No pending appointments</s-text>
-            <s-button onClick={fetchAppointments}>Refresh</s-button>
-          </s-box>
-        </s-scroll-box>
-      </s-page>
+    return h('s-page', { title: pageTitle },
+      h('s-scroll-box', null,
+        h('s-box', { padding: 'base' },
+          h('s-text', null, 'No pending appointments'),
+          h('s-button', { onClick: fetchAppointments }, 'Refresh')
+        )
+      )
     );
   }
 
-  return (
-    <s-page title={pageTitle}>
-      <s-scroll-box>
-        <s-box padding="base">
-          <s-text variant="headingLg">{appointments.length + ' Pending'}</s-text>
-          {appointments.map(function(apt) {
-            return (
-              <s-section key={apt.id}>
-                <s-box padding="base">
-                  <s-text variant="headingMd">{apt.customerName}</s-text>
-                  <s-text>{apt.serviceName}</s-text>
-                  {viewMode === 'manager' ? <s-text>{'Stylist: ' + apt.stylistName}</s-text> : null}
-                  <s-text variant="headingLg">{'$' + apt.amount}</s-text>
-                  <s-button onClick={function() { addToCart(apt); }}>Add to Cart</s-button>
-                </s-box>
-              </s-section>
-            );
-          })}
-          <s-button onClick={fetchAppointments}>Refresh</s-button>
-        </s-box>
-      </s-scroll-box>
-    </s-page>
+  var items = appointments.map(function(apt) {
+    return h('s-section', { key: apt.id },
+      h('s-box', { padding: 'base' },
+        h('s-text', { variant: 'headingMd' }, apt.customerName),
+        h('s-text', null, apt.serviceName),
+        viewMode === 'manager' ? h('s-text', null, 'Stylist: ' + apt.stylistName) : null,
+        h('s-text', { variant: 'headingLg' }, '$' + apt.amount),
+        h('s-button', { onClick: function() { addToCart(apt); } }, 'Add to Cart')
+      )
+    );
+  });
+
+  return h('s-page', { title: pageTitle },
+    h('s-scroll-box', null,
+      h('s-box', { padding: 'base' },
+        h('s-text', { variant: 'headingLg' }, appointments.length + ' Pending'),
+        items,
+        h('s-button', { onClick: fetchAppointments }, 'Refresh')
+      )
+    )
   );
 }

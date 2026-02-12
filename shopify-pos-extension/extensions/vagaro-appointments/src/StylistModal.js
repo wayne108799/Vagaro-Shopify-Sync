@@ -1,11 +1,11 @@
 import '@shopify/ui-extensions/preact';
-import { render } from 'preact';
+import { render, h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 
 var BACKEND_URL = 'https://Beautyoasisadmin.replit.app';
 
 export default function extension() {
-  render(<StylistModalComponent />, document.body);
+  render(h(StylistModalComponent), document.body);
 }
 
 function StylistModalComponent() {
@@ -95,94 +95,92 @@ function StylistModalComponent() {
 
   function fmtTime(iso) {
     if (!iso) return '';
-    var d = new Date(iso), h = d.getHours(), m = d.getMinutes(), ap = h >= 12 ? 'PM' : 'AM';
-    h = h % 12; h = h || 12;
-    return h + ':' + (m < 10 ? '0' : '') + m + ' ' + ap;
+    var d = new Date(iso), hr = d.getHours(), mn = d.getMinutes(), ap = hr >= 12 ? 'PM' : 'AM';
+    hr = hr % 12; hr = hr || 12;
+    return hr + ':' + (mn < 10 ? '0' : '') + mn + ' ' + ap;
   }
 
-  if (loading) return <s-page title="My Earnings"><s-scroll-box><s-box padding="base"><s-text>Loading...</s-text></s-box></s-scroll-box></s-page>;
+  if (loading) {
+    return h('s-page', { title: 'My Earnings' },
+      h('s-scroll-box', null, h('s-box', { padding: 'base' }, h('s-text', null, 'Loading...')))
+    );
+  }
 
-  if (error) return (
-    <s-page title="My Earnings"><s-scroll-box><s-box padding="base">
-      <s-banner status="critical" title="Error">{error}</s-banner>
-      <s-button onClick={fetchSummary}>Retry</s-button>
-    </s-box></s-scroll-box></s-page>
-  );
+  if (error) {
+    return h('s-page', { title: 'My Earnings' },
+      h('s-scroll-box', null, h('s-box', { padding: 'base' },
+        h('s-banner', { status: 'critical', title: 'Error' }, error),
+        h('s-button', { onClick: fetchSummary }, 'Retry')
+      ))
+    );
+  }
 
   if (!summary || !summary.found) {
     var stylists = summary && summary.availableStylists ? summary.availableStylists : [];
-    return (
-      <s-page title="Link Your Account"><s-scroll-box><s-box padding="base">
-        <s-text variant="headingMd">Select Your Name</s-text>
-        <s-text>Link your POS account to track your earnings</s-text>
-        {stylists.map(function(s) {
-          return (
-            <s-box key={s.id} padding="base">
-              <s-text variant="headingMd">{s.name}</s-text>
-              {s.hasShopifyLink
-                ? <s-text>(Already linked)</s-text>
-                : <s-button onClick={function() { linkStylist(s.id); }}>This is me</s-button>
-              }
-            </s-box>
+    return h('s-page', { title: 'Link Your Account' },
+      h('s-scroll-box', null, h('s-box', { padding: 'base' },
+        h('s-text', { variant: 'headingMd' }, 'Select Your Name'),
+        h('s-text', null, 'Link your POS account to track your earnings'),
+        stylists.map(function(s) {
+          return h('s-box', { key: s.id, padding: 'base' },
+            h('s-text', { variant: 'headingMd' }, s.name),
+            s.hasShopifyLink
+              ? h('s-text', null, '(Already linked)')
+              : h('s-button', { onClick: function() { linkStylist(s.id); } }, 'This is me')
           );
-        })}
-      </s-box></s-scroll-box></s-page>
+        })
+      ))
     );
   }
 
   var sty = summary.stylist, today = summary.today, period = summary.payPeriod, pending = summary.pendingAppointments || [];
 
-  return (
-    <s-page title={sty.name}><s-scroll-box><s-box padding="base">
+  return h('s-page', { title: sty.name },
+    h('s-scroll-box', null, h('s-box', { padding: 'base' },
 
-      <s-section heading="Time Clock"><s-box padding="base">
-        {clockStatus && clockStatus.clockedIn
-          ? <s-box>
-              <s-badge tone="success">Clocked In</s-badge>
-              <s-text>{'Since ' + fmtTime(clockStatus.clockInTime)}</s-text>
-              <s-text>{(clockStatus.hoursWorked || '0') + ' hours today'}</s-text>
-              <s-button variant="destructive" disabled={clockLoading} onClick={handleClockOut}>{clockLoading ? 'Processing...' : 'Clock Out'}</s-button>
-            </s-box>
-          : <s-box>
-              <s-badge>Clocked Out</s-badge>
-              <s-button variant="primary" disabled={clockLoading} onClick={handleClockIn}>{clockLoading ? 'Processing...' : 'Clock In'}</s-button>
-            </s-box>
-        }
-      </s-box></s-section>
+      h('s-section', { heading: 'Time Clock' }, h('s-box', { padding: 'base' },
+        clockStatus && clockStatus.clockedIn
+          ? [
+              h('s-badge', { tone: 'success' }, 'Clocked In'),
+              h('s-text', null, 'Since ' + fmtTime(clockStatus.clockInTime)),
+              h('s-text', null, (clockStatus.hoursWorked || '0') + ' hours today'),
+              h('s-button', { variant: 'destructive', disabled: clockLoading, onClick: handleClockOut }, clockLoading ? 'Processing...' : 'Clock Out')
+            ]
+          : [
+              h('s-badge', null, 'Clocked Out'),
+              h('s-button', { variant: 'primary', disabled: clockLoading, onClick: handleClockIn }, clockLoading ? 'Processing...' : 'Clock In')
+            ]
+      )),
 
-      <s-section heading="Today's Earnings"><s-box padding="base">
-        <s-text variant="headingLg">{'$' + today.totalEarnings}</s-text>
-        <s-text>{'Sales: $' + today.sales + ' | Tips: $' + today.tips}</s-text>
-        <s-text>{'Commission: $' + today.commission + ' (' + sty.commissionRate + '%)'}</s-text>
-        <s-text>{today.paidOrders + ' paid, ' + today.pendingOrders + ' pending'}</s-text>
-      </s-box></s-section>
+      h('s-section', { heading: "Today's Earnings" }, h('s-box', { padding: 'base' },
+        h('s-text', { variant: 'headingLg' }, '$' + today.totalEarnings),
+        h('s-text', null, 'Sales: $' + today.sales + ' | Tips: $' + today.tips),
+        h('s-text', null, 'Commission: $' + today.commission + ' (' + sty.commissionRate + '%)'),
+        h('s-text', null, today.paidOrders + ' paid, ' + today.pendingOrders + ' pending')
+      )),
 
-      <s-section heading="Pay Period"><s-box padding="base">
-        <s-text>{period.start + ' to ' + period.end}</s-text>
-        <s-text variant="headingLg">{'$' + period.totalEarnings}</s-text>
-        <s-text>{'Sales: $' + period.sales}</s-text>
-        <s-text>{'Commission: $' + period.commission}</s-text>
-        <s-text>{'Tips: $' + period.tips}</s-text>
-        {sty.hourlyRate !== '0' && sty.hourlyRate !== null ? <s-text>{'Hourly: $' + period.hourlyEarnings + ' (' + period.hoursWorked + ' hrs)'}</s-text> : null}
-        <s-text>{period.orderCount + ' orders'}</s-text>
-      </s-box></s-section>
+      h('s-section', { heading: 'Pay Period' }, h('s-box', { padding: 'base' },
+        h('s-text', null, period.start + ' to ' + period.end),
+        h('s-text', { variant: 'headingLg' }, '$' + period.totalEarnings),
+        h('s-text', null, 'Sales: $' + period.sales),
+        h('s-text', null, 'Commission: $' + period.commission),
+        h('s-text', null, 'Tips: $' + period.tips),
+        sty.hourlyRate !== '0' && sty.hourlyRate !== null ? h('s-text', null, 'Hourly: $' + period.hourlyEarnings + ' (' + period.hoursWorked + ' hrs)') : null,
+        h('s-text', null, period.orderCount + ' orders')
+      )),
 
-      {pending.length > 0 &&
-        <s-section heading="Your Pending Appointments"><s-box padding="base">
-          {pending.map(function(apt) {
-            return (
-              <s-box key={apt.id} padding="base">
-                <s-text variant="headingMd">{apt.customerName}</s-text>
-                <s-text>{apt.serviceName}</s-text>
-                <s-text variant="headingLg">{'$' + apt.amount}</s-text>
-                <s-button onClick={function() { addToCart(apt); }}>Add to Cart</s-button>
-              </s-box>
-            );
-          })}
-        </s-box></s-section>
-      }
+      pending.length > 0 ? h('s-section', { heading: 'Your Pending Appointments' }, h('s-box', { padding: 'base' },
+        pending.map(function(apt) {
+          return h('s-box', { key: apt.id, padding: 'base' },
+            h('s-text', { variant: 'headingMd' }, apt.customerName),
+            h('s-text', null, apt.serviceName),
+            h('s-text', { variant: 'headingLg' }, '$' + apt.amount),
+            h('s-button', { onClick: function() { addToCart(apt); } }, 'Add to Cart')
+          );
+        })
+      )) : null,
 
-      <s-button onClick={fetchSummary}>Refresh</s-button>
-    </s-box></s-scroll-box></s-page>
+      h('s-button', { onClick: fetchSummary }, 'Refresh')
+    ))
   );
 }
