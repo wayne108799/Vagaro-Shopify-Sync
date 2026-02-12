@@ -1,66 +1,68 @@
+import '@shopify/ui-extensions/preact';
 import { render, h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 
 const BACKEND_URL = 'https://Beautyoasisadmin.replit.app';
 
-export default async () => {
+export default function extension() {
   render(h(Extension), document.body);
-};
+}
 
 function Extension() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [appointments, setAppointments] = useState([]);
-  const [error, setError] = useState(null);
-  const [viewMode, setViewMode] = useState(null);
-  const [stylistName, setStylistName] = useState(null);
-  const [debugInfo, setDebugInfo] = useState('');
+  var _s1 = useState(true);
+  var isLoading = _s1[0];
+  var setIsLoading = _s1[1];
 
-  useEffect(() => {
+  var _s2 = useState([]);
+  var appointments = _s2[0];
+  var setAppointments = _s2[1];
+
+  var _s3 = useState(null);
+  var error = _s3[0];
+  var setError = _s3[1];
+
+  var _s4 = useState(null);
+  var viewMode = _s4[0];
+  var setViewMode = _s4[1];
+
+  var _s5 = useState(null);
+  var stylistName = _s5[0];
+  var setStylistName = _s5[1];
+
+  useEffect(function() {
     fetchAppointments();
   }, []);
 
   async function fetchAppointments() {
     try {
       setIsLoading(true);
-      setDebugInfo('Starting fetch...');
-      
-      // Try to get current staff member, but don't fail if unavailable
+
       var staffParam = '';
       try {
         if (typeof shopify !== 'undefined' && shopify.staff && shopify.staff.current) {
           var staff = await shopify.staff.current();
           if (staff && staff.id) {
             staffParam = '?staffId=' + staff.id;
-            setDebugInfo('Got staff: ' + staff.id);
-          } else {
-            setDebugInfo('No staff ID');
           }
-        } else {
-          setDebugInfo('shopify.staff not available');
         }
       } catch (staffErr) {
-        setDebugInfo('Staff error: ' + staffErr.message);
+        console.log('Staff error:', staffErr);
       }
-      
+
       var url = BACKEND_URL + '/api/pos/pending-appointments' + staffParam;
-      setDebugInfo(function(prev) { return prev + ' | Fetching: ' + url; });
-      
-      const response = await fetch(url, {
+
+      var response = await fetch(url, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
         mode: 'cors'
       });
 
-      setDebugInfo(function(prev) { return prev + ' | Status: ' + response.status; });
-      
       if (!response.ok) throw new Error('HTTP ' + response.status);
-      const data = await response.json();
-      setDebugInfo(function(prev) { return prev + ' | Got ' + (data.appointments || []).length + ' appointments'; });
+      var data = await response.json();
       setAppointments(data.appointments || []);
       setViewMode(data.viewMode || 'manager');
       setStylistName(data.stylistName || null);
     } catch (err) {
-      setDebugInfo(function(prev) { return prev + ' | ERROR: ' + err.message; });
       setError(err.message);
     } finally {
       setIsLoading(false);
@@ -100,7 +102,7 @@ function Extension() {
   }
 
   if (isLoading) {
-    return h('s-page', { heading: 'Vagaro Appointments' },
+    return h('s-page', { title: 'Vagaro Appointments' },
       h('s-scroll-box', null,
         h('s-box', { padding: 'base' },
           h('s-text', null, 'Loading appointments...')
@@ -110,23 +112,22 @@ function Extension() {
   }
 
   if (error) {
-    return h('s-page', { heading: 'Vagaro Appointments' },
+    return h('s-page', { title: 'Vagaro Appointments' },
       h('s-scroll-box', null,
         h('s-box', { padding: 'base' },
           h('s-banner', { status: 'critical', title: 'Error' }, error),
-          h('s-text', { variant: 'bodySm' }, debugInfo),
           h('s-button', { onClick: fetchAppointments }, 'Retry')
         )
       )
     );
   }
 
-  var pageTitle = viewMode === 'stylist' && stylistName 
-    ? stylistName + "'s Appointments" 
+  var pageTitle = viewMode === 'stylist' && stylistName
+    ? stylistName + "'s Appointments"
     : "Today's Appointments";
 
   if (appointments.length === 0) {
-    return h('s-page', { heading: pageTitle },
+    return h('s-page', { title: pageTitle },
       h('s-scroll-box', null,
         h('s-box', { padding: 'base' },
           h('s-text', null, 'No pending appointments'),
@@ -136,23 +137,23 @@ function Extension() {
     );
   }
 
-  var cards = appointments.map(function(apt) {
-    return h('s-card', { key: apt.id },
+  var items = appointments.map(function(apt) {
+    return h('s-section', { key: apt.id },
       h('s-box', { padding: 'base' },
-        h('s-text', { variant: 'headingMedium' }, apt.customerName),
+        h('s-text', { variant: 'headingMd' }, apt.customerName),
         h('s-text', null, apt.serviceName),
         viewMode === 'manager' ? h('s-text', null, 'Stylist: ' + apt.stylistName) : null,
-        h('s-text', { variant: 'headingLarge' }, '$' + apt.amount),
+        h('s-text', { variant: 'headingLg' }, '$' + apt.amount),
         h('s-button', { onClick: function() { addToCart(apt); } }, 'Add to Cart')
       )
     );
   });
 
-  return h('s-page', { heading: pageTitle },
+  return h('s-page', { title: pageTitle },
     h('s-scroll-box', null,
       h('s-box', { padding: 'base' },
-        h('s-text', { variant: 'headingLarge' }, appointments.length + ' Pending'),
-        cards
+        h('s-text', { variant: 'headingLg' }, appointments.length + ' Pending'),
+        items
       )
     )
   );

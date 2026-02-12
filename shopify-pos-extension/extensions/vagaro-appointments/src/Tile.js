@@ -1,13 +1,15 @@
+import '@shopify/ui-extensions/preact';
 import { render, h } from 'preact';
 
-export default async () => {
+export default function extension() {
   render(h(Extension), document.body);
 }
 
 function Extension() {
   return h('s-tile', {
-    heading: 'Vagaro Appointments',
-    subheading: 'View pending appointments',
-    onClick: () => shopify.action.presentModal()
+    title: 'Vagaro Appointments',
+    subtitle: 'View pending appointments',
+    onPress: function() { shopify.action.presentModal(); },
+    enabled: true
   });
 }

@@ -1,40 +1,37 @@
+import '@shopify/ui-extensions/preact';
 import { render, h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 
 const BACKEND_URL = 'https://Beautyoasisadmin.replit.app';
 
-export default async () => {
+export default function extension() {
   render(h(Extension), document.body);
-};
+}
 
 function Extension() {
-  var _useState = useState(null);
-  var summary = _useState[0];
-  var setSummary = _useState[1];
-  
-  var _useState2 = useState(true);
-  var loading = _useState2[0];
-  var setLoading = _useState2[1];
-  
-  var _useState3 = useState(null);
-  var error = _useState3[0];
-  var setError = _useState3[1];
-  
-  var _useState4 = useState(null);
-  var staffId = _useState4[0];
-  var setStaffId = _useState4[1];
-  
-  var _useState5 = useState('');
-  var debugInfo = _useState5[0];
-  var setDebugInfo = _useState5[1];
-  
-  var _useState6 = useState(null);
-  var clockStatus = _useState6[0];
-  var setClockStatus = _useState6[1];
-  
-  var _useState7 = useState(false);
-  var clockLoading = _useState7[0];
-  var setClockLoading = _useState7[1];
+  var _s1 = useState(null);
+  var summary = _s1[0];
+  var setSummary = _s1[1];
+
+  var _s2 = useState(true);
+  var loading = _s2[0];
+  var setLoading = _s2[1];
+
+  var _s3 = useState(null);
+  var error = _s3[0];
+  var setError = _s3[1];
+
+  var _s4 = useState(null);
+  var staffId = _s4[0];
+  var setStaffId = _s4[1];
+
+  var _s5 = useState(null);
+  var clockStatus = _s5[0];
+  var setClockStatus = _s5[1];
+
+  var _s6 = useState(false);
+  var clockLoading = _s6[0];
+  var setClockLoading = _s6[1];
 
   useEffect(function() {
     fetchSummary();
@@ -43,44 +40,33 @@ function Extension() {
   async function fetchSummary() {
     setLoading(true);
     setError(null);
-    setDebugInfo('Starting...');
-    
+
     try {
       var staff = null;
       var savedLinkId = null;
-      
+
       try {
         savedLinkId = localStorage.getItem('vagaro_stylist_link');
-        if (savedLinkId) {
-          setDebugInfo('Found saved link: ' + savedLinkId);
-        }
-      } catch (e) {
-      }
-      
+      } catch (e) {}
+
       try {
         if (typeof shopify !== 'undefined' && shopify.staff && shopify.staff.current) {
           staff = await shopify.staff.current();
-          setDebugInfo('Got staff: ' + (staff ? staff.id : 'null'));
-        } else {
-          setDebugInfo('shopify.staff not available');
         }
       } catch (staffErr) {
-        setDebugInfo('Staff error: ' + staffErr.message);
+        console.log('Staff error:', staffErr);
       }
-      
-      var url;
+
       var effectiveStaffId = (staff && staff.id) ? staff.id : savedLinkId;
-      
+
+      var url;
       if (!effectiveStaffId) {
-        setDebugInfo(function(prev) { return prev + ' | No staff or link, fetching stylist list'; });
         url = BACKEND_URL + '/api/pos/stylist-summary?staffId=unknown';
       } else {
         setStaffId(effectiveStaffId);
         url = BACKEND_URL + '/api/pos/stylist-summary?staffId=' + effectiveStaffId;
         fetchClockStatus(effectiveStaffId);
       }
-      
-      setDebugInfo(function(prev) { return prev + ' | Fetching: ' + url; });
 
       var response = await fetch(url, {
         method: 'GET',
@@ -88,15 +74,11 @@ function Extension() {
         mode: 'cors'
       });
 
-      setDebugInfo(function(prev) { return prev + ' | Status: ' + response.status; });
-      
       if (!response.ok) throw new Error('HTTP ' + response.status);
       var data = await response.json();
-      setDebugInfo(function(prev) { return prev + ' | Found: ' + data.found; });
       setError(null);
       setSummary(data);
     } catch (err) {
-      setDebugInfo(function(prev) { return prev + ' | ERROR: ' + err.message; });
       setError(err.message);
     } finally {
       setLoading(false);
@@ -175,16 +157,15 @@ function Extension() {
       });
 
       if (!response.ok) throw new Error('Failed to link');
-      
+
       var data = await response.json();
       if (data.linkId) {
         try {
           localStorage.setItem('vagaro_stylist_link', data.linkId);
           setStaffId(data.linkId);
-        } catch (e) {
-        }
+        } catch (e) {}
       }
-      
+
       shopify.toast.show('Account linked successfully');
       fetchSummary();
     } catch (err) {
@@ -232,7 +213,7 @@ function Extension() {
   }
 
   if (loading) {
-    return h('s-page', { heading: 'My Earnings' },
+    return h('s-page', { title: 'My Earnings' },
       h('s-scroll-box', null,
         h('s-box', { padding: 'base' },
           h('s-text', null, 'Loading...')
@@ -242,11 +223,10 @@ function Extension() {
   }
 
   if (error) {
-    return h('s-page', { heading: 'My Earnings' },
+    return h('s-page', { title: 'My Earnings' },
       h('s-scroll-box', null,
         h('s-box', { padding: 'base' },
           h('s-banner', { status: 'critical', title: 'Error' }, error),
-          h('s-text', { variant: 'bodySm' }, debugInfo),
           h('s-button', { onClick: fetchSummary }, 'Retry')
         )
       )
@@ -255,20 +235,20 @@ function Extension() {
 
   if (!summary || !summary.found) {
     var stylists = summary && summary.availableStylists ? summary.availableStylists : [];
-    
-    return h('s-page', { heading: 'Link Your Account' },
+
+    return h('s-page', { title: 'Link Your Account' },
       h('s-scroll-box', null,
         h('s-box', { padding: 'base' },
-          h('s-text', { variant: 'headingMedium' }, 'Select Your Name'),
+          h('s-text', { variant: 'headingMd' }, 'Select Your Name'),
           h('s-text', null, 'Link your POS account to track your earnings'),
           h('s-box', { paddingBlockStart: 'base' },
-            stylists.length === 0 
+            stylists.length === 0
               ? h('s-text', null, 'No stylists available. Add stylists in the admin dashboard.')
               : stylists.map(function(s) {
-                  return h('s-card', { key: s.id },
+                  return h('s-section', { key: s.id },
                     h('s-box', { padding: 'base' },
-                      h('s-text', { variant: 'headingMedium' }, s.name),
-                      s.hasShopifyLink 
+                      h('s-text', { variant: 'headingMd' }, s.name),
+                      s.hasShopifyLink
                         ? h('s-text', null, '(Already linked)')
                         : h('s-button', { onClick: function() { linkStylist(s.id); } }, 'This is me')
                     )
@@ -285,90 +265,78 @@ function Extension() {
   var period = summary.payPeriod;
   var pending = summary.pendingAppointments || [];
 
-  return h('s-page', { heading: stylist.name },
+  return h('s-page', { title: stylist.name },
     h('s-scroll-box', null,
       h('s-box', { padding: 'base' },
-        
-        h('s-card', null,
+
+        h('s-section', { heading: 'Time Clock' },
           h('s-box', { padding: 'base' },
-            h('s-text', { variant: 'headingMedium' }, 'Time Clock'),
             clockStatus && clockStatus.clockedIn
-              ? h('s-box', { paddingBlockStart: 'tight' },
-                  h('s-badge', { status: 'success' }, 'Clocked In'),
+              ? h('s-box', null,
+                  h('s-badge', { tone: 'success' }, 'Clocked In'),
                   h('s-text', null, 'Since ' + formatTime(clockStatus.clockInTime)),
                   h('s-text', null, clockStatus.hoursWorked + ' hours today'),
                   h('s-box', { paddingBlockStart: 'tight' },
-                    h('s-button', { 
-                      onClick: handleClockOut, 
+                    h('s-button', {
+                      onClick: handleClockOut,
                       disabled: clockLoading,
-                      kind: 'destructive'
+                      variant: 'destructive'
                     }, clockLoading ? 'Processing...' : 'Clock Out')
                   )
                 )
-              : h('s-box', { paddingBlockStart: 'tight' },
-                  h('s-badge', { status: 'neutral' }, 'Clocked Out'),
+              : h('s-box', null,
+                  h('s-badge', null, 'Clocked Out'),
                   h('s-box', { paddingBlockStart: 'tight' },
-                    h('s-button', { 
-                      onClick: handleClockIn, 
+                    h('s-button', {
+                      onClick: handleClockIn,
                       disabled: clockLoading,
-                      kind: 'primary'
+                      variant: 'primary'
                     }, clockLoading ? 'Processing...' : 'Clock In')
                   )
                 )
           )
         ),
-        
-        h('s-box', { paddingBlockStart: 'base' },
-          h('s-card', null,
-            h('s-box', { padding: 'base' },
-              h('s-text', { variant: 'headingMedium' }, "Today's Earnings"),
-              h('s-box', { paddingBlockStart: 'tight' },
-                h('s-text', { variant: 'headingLarge' }, '$' + today.totalEarnings)
-              ),
-              h('s-box', { paddingBlockStart: 'tight' },
-                h('s-text', null, 'Sales: $' + today.sales + ' | Tips: $' + today.tips),
-                h('s-text', null, 'Commission: $' + today.commission + ' (' + stylist.commissionRate + '%)'),
-                h('s-text', null, today.paidOrders + ' paid, ' + today.pendingOrders + ' pending')
-              )
+
+        h('s-section', { heading: "Today's Earnings" },
+          h('s-box', { padding: 'base' },
+            h('s-text', { variant: 'headingLg' }, '$' + today.totalEarnings),
+            h('s-box', { paddingBlockStart: 'tight' },
+              h('s-text', null, 'Sales: $' + today.sales + ' | Tips: $' + today.tips),
+              h('s-text', null, 'Commission: $' + today.commission + ' (' + stylist.commissionRate + '%)'),
+              h('s-text', null, today.paidOrders + ' paid, ' + today.pendingOrders + ' pending')
             )
           )
         ),
-        
-        h('s-box', { paddingBlockStart: 'base' },
-          h('s-card', null,
-            h('s-box', { padding: 'base' },
-              h('s-text', { variant: 'headingMedium' }, 'Pay Period'),
-              h('s-text', null, period.start + ' to ' + period.end),
-              h('s-box', { paddingBlockStart: 'tight' },
-                h('s-text', { variant: 'headingLarge' }, '$' + period.totalEarnings)
-              ),
-              h('s-box', { paddingBlockStart: 'tight' },
-                h('s-text', null, 'Sales: $' + period.sales),
-                h('s-text', null, 'Commission: $' + period.commission),
-                h('s-text', null, 'Tips: $' + period.tips),
-                stylist.hourlyRate !== '0' && stylist.hourlyRate !== null
-                  ? h('s-text', null, 'Hourly: $' + period.hourlyEarnings + ' (' + period.hoursWorked + ' hrs)')
-                  : null,
-                h('s-text', null, period.orderCount + ' orders')
-              )
+
+        h('s-section', { heading: 'Pay Period' },
+          h('s-box', { padding: 'base' },
+            h('s-text', null, period.start + ' to ' + period.end),
+            h('s-text', { variant: 'headingLg' }, '$' + period.totalEarnings),
+            h('s-box', { paddingBlockStart: 'tight' },
+              h('s-text', null, 'Sales: $' + period.sales),
+              h('s-text', null, 'Commission: $' + period.commission),
+              h('s-text', null, 'Tips: $' + period.tips),
+              stylist.hourlyRate !== '0' && stylist.hourlyRate !== null
+                ? h('s-text', null, 'Hourly: $' + period.hourlyEarnings + ' (' + period.hoursWorked + ' hrs)')
+                : null,
+              h('s-text', null, period.orderCount + ' orders')
             )
           )
         ),
-        
-        pending.length > 0 && h('s-box', { paddingBlockStart: 'base' },
-          h('s-text', { variant: 'headingMedium' }, 'Your Pending Appointments'),
-          pending.map(function(apt) {
-            return h('s-card', { key: apt.id },
-              h('s-box', { padding: 'base' },
-                h('s-text', { variant: 'headingMedium' }, apt.customerName),
+
+        pending.length > 0 && h('s-section', { heading: 'Your Pending Appointments' },
+          h('s-box', { padding: 'base' },
+            pending.map(function(apt) {
+              return h('s-box', { key: apt.id, padding: 'base' },
+                h('s-text', { variant: 'headingMd' }, apt.customerName),
                 h('s-text', null, apt.serviceName),
-                h('s-text', { variant: 'headingLarge' }, '$' + apt.amount),
+                h('s-text', { variant: 'headingLg' }, '$' + apt.amount),
                 h('s-button', { onClick: function() { addToCart(apt); } }, 'Add to Cart')
-              )
-            );
-          })
+              );
+            })
+          )
         ),
-        
+
         h('s-box', { paddingBlockStart: 'base' },
           h('s-button', { onClick: fetchSummary }, 'Refresh')
         )
