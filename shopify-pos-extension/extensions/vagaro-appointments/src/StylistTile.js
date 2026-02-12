@@ -1,22 +1,29 @@
-import { Tile, extension } from '@shopify/ui-extensions/point-of-sale';
+import '@shopify/ui-extensions/preact';
+import { render } from 'preact';
+import { useState, useEffect } from 'preact/hooks';
 
-const BACKEND_URL = 'https://Beautyoasisadmin.replit.app';
+var BACKEND_URL = 'https://Beautyoasisadmin.replit.app';
 
-export default extension('pos.home.tile.render', (root, api) => {
-  var tile = root.createComponent(Tile, {
-    title: 'My Earnings',
-    subtitle: 'Loading...',
-    enabled: false,
-  });
-  root.append(tile);
+export default function extension() {
+  render(<StylistTileComponent />, document.body);
+}
 
-  fetchSummary();
+function StylistTileComponent() {
+  var _s = useState({ title: 'My Earnings', subtitle: 'Loading...', enabled: false });
+  var tileProps = _s[0];
+  var setTileProps = _s[1];
+
+  useEffect(function() {
+    fetchSummary();
+    var interval = setInterval(fetchSummary, 60000);
+    return function() { clearInterval(interval); };
+  }, []);
 
   async function fetchSummary() {
     try {
       var staffId = 'unknown';
       try {
-        var staff = await api.session.currentStaff;
+        var staff = await shopify.staff.current();
         if (staff && staff.id) staffId = staff.id;
       } catch (e) {}
 
@@ -25,21 +32,27 @@ export default extension('pos.home.tile.render', (root, api) => {
         headers: { 'Content-Type': 'application/json' },
         mode: 'cors'
       });
-
       if (!response.ok) throw new Error('Failed');
       var data = await response.json();
 
       if (!data.found) {
-        tile.updateProps({ title: 'My Earnings', subtitle: 'Not linked - tap to setup', enabled: true, onPress: function() { api.action.presentModal(); } });
+        setTileProps({ title: 'My Earnings', subtitle: 'Not linked', enabled: true });
         return;
       }
 
       var sub = '$' + (data.today ? data.today.totalEarnings : '0') + ' today';
-      tile.updateProps({ title: data.stylist.name, subtitle: sub, enabled: true, onPress: function() { api.action.presentModal(); } });
+      setTileProps({ title: data.stylist.name, subtitle: sub, enabled: true });
     } catch (err) {
-      tile.updateProps({ title: 'My Earnings', subtitle: 'Tap to retry', enabled: true, onPress: fetchSummary });
+      setTileProps({ title: 'My Earnings', subtitle: 'Tap to retry', enabled: true });
     }
   }
 
-  setInterval(fetchSummary, 60000);
-});
+  return (
+    <s-tile
+      title={tileProps.title}
+      subtitle={tileProps.subtitle}
+      enabled={tileProps.enabled}
+      onClick={() => shopify.action.presentModal()}
+    />
+  );
+}
