@@ -1325,6 +1325,43 @@ export default function Dashboard() {
                     </div>
                   </CardContent>
                 </Card>
+
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded bg-orange-500/10 flex items-center justify-center text-orange-500">
+                        <RotateCcw className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <CardTitle>POS Staff Links</CardTitle>
+                        <CardDescription>Manage POS staff-to-stylist account links</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      If staff members are seeing incorrect data in the POS "My Earnings" tile, you can reset all links. Each staff member will be prompted to re-select their name next time they open the tile.
+                    </p>
+                    <Button
+                      variant="destructive"
+                      onClick={async () => {
+                        if (!confirm("This will reset all POS staff links. Each staff member will need to re-link their account. Continue?")) return;
+                        try {
+                          const res = await fetch("/api/admin/clear-pos-links", { method: "POST", credentials: "include" });
+                          if (!res.ok) throw new Error("Failed to clear links");
+                          const data = await res.json();
+                          toast.success(`Cleared ${data.cleared} POS staff link(s)`);
+                        } catch (err: any) {
+                          toast.error(err.message || "Failed to clear POS links");
+                        }
+                      }}
+                      data-testid="button-clear-pos-links"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Clear All POS Staff Links
+                    </Button>
+                  </CardContent>
+                </Card>
               </div>
             )}
             
