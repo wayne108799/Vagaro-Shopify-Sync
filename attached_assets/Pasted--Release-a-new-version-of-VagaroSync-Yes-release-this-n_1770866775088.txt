@@ -1,0 +1,76 @@
+?  Release a new version of VagaroSync?
+✔  Yes, release this new version
+
+
+Releasing a new app version as part of VagaroSync
+
+vagaro-appointments │ Bundling UI extension vagaro-appointments...
+   stylist-earnings │ Bundling UI extension stylist-earnings...
+
+✘ [✘ ERROR[]ERROR ]Could not resolve "preact"
+
+    extensions/vagaro-appointments/src/StylistTile.js:1:26:
+Could not resolve "preact"      1 │ import { render, h } from
+
+    extensions/vagaro-appointments/src/Tile.js:1:26:
+'preact'      1 │ import { render, h } from ;
+        ╵                           'preact'~~~~~~~~;
+        ╵
+
+  You can mark the path "preact" as external to exclude it from the bundle, which will remove this
+  error and leave the unresolved path in the bundle.
+
+~~~~~~~~
+
+  You can mark the path "preact" as external to exclude it from the bundle, which will remove this
+  error and leave the unresolved path in the bundle.
+
+✘ [✘ ERROR[]ERROR ]Could not resolve "preact"
+
+    extensions/vagaro-appointments/src/StylistModal.js:1:26:
+Could not resolve "preact"      1 │ import { render, h } from
+
+    extensions/vagaro-appointments/src/Modal.js:1:26:
+'preact'      1 │ import { render, h } from ;
+        ╵                           'preact'~~~~~~~~;
+        ╵
+
+  You can mark the path "preact" as external to exclude it from the bundle, which will remove this
+  error and leave the unresolved path in the bundle.
+
+~~~~~~~~
+
+  You can mark the path "preact" as external to exclude it from the bundle, which will remove this
+  error and leave the unresolved path in the bundle.
+
+✘ [✘ ERROR[]ERROR ]Could not resolve "preact/hooks"
+
+    extensions/vagaro-appointments/src/StylistTile.js:2:36:
+Could not resolve "preact/hooks"      2 │ import { useState, useEffect } from
+
+    extensions/vagaro-appointments/src/Modal.js:2:36:
+'preact/hooks'      2 │ import { useState, useEffect } from ;
+        ╵                                     'preact/hooks'~~~~~~~~~~~~~~;
+        ╵
+
+  You can mark the path "preact/hooks" as external to exclude it from the bundle, which will remove
+  this error and leave the unresolved path in the bundle.
+
+~~~~~~~~~~~~~~
+
+  You can mark the path "preact/hooks" as external to exclude it from the bundle, which will remove
+  this error and leave the unresolved path in the bundle.
+
+✘ [ERROR] Could not resolve "preact/hooks"
+
+    extensions/vagaro-appointments/src/StylistModal.js:2:36:
+      2 │ import { useState, useEffect } from 'preact/hooks';
+        ╵                                     ~~~~~~~~~~~~~~
+
+  You can mark the path "preact/hooks" as external to exclude it from the bundle, which will remove
+  this error and leave the unresolved path in the bundle.
+
+╭─ error ──────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│  Failed to bundle extension vagaro-appointments. Please check the extension  │
+│   source code for errors.   
