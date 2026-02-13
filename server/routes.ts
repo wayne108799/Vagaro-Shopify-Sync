@@ -224,6 +224,27 @@ export async function registerRoutes(
     }
   });
 
+  // One-time cleanup: remove junk "Stylist Unknown" and test stylist records
+  (async () => {
+    try {
+      const allStylists = await storage.getStylists();
+      const junkStylists = allStylists.filter(s => 
+        s.name === 'Stylist Unknown' || 
+        s.name.startsWith('Stylist test-') ||
+        (!s.vagaroId && s.name.startsWith('Stylist '))
+      );
+      if (junkStylists.length > 0) {
+        console.log(`[Cleanup] Removing ${junkStylists.length} junk stylist records...`);
+        for (const junk of junkStylists) {
+          await storage.deleteStylist(junk.id);
+        }
+        console.log(`[Cleanup] Done. Removed ${junkStylists.length} records.`);
+      }
+    } catch (e: any) {
+      console.log(`[Cleanup] Error: ${e.message}`);
+    }
+  })();
+
   // Vagaro webhook endpoint
   app.post("/api/webhooks/vagaro", async (req, res) => {
     try {
