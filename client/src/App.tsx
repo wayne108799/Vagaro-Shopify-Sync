@@ -10,9 +10,12 @@ import StylistLogin from "@/pages/stylist-login";
 import StylistDashboard from "@/pages/stylist-dashboard";
 import NotFound from "@/pages/not-found";
 
-function isShopifyEmbed() {
+function getShopifyParams() {
   const params = new URLSearchParams(window.location.search);
-  return !!(params.get("shop") || params.get("host") || params.get("hmac") || window.top !== window.self);
+  const shop = params.get("shop") || "";
+  const host = params.get("host") || "";
+  if (shop || host) return { shop, host };
+  return null;
 }
 
 function ProtectedDashboard() {
@@ -28,13 +31,11 @@ function ProtectedDashboard() {
         }
       } catch (e) {}
 
-      if (isShopifyEmbed()) {
+      const shopifyParams = getShopifyParams();
+      if (shopifyParams) {
         try {
-          const params = new URLSearchParams(window.location.search);
-          const shop = params.get("shop") || "";
-          const host = params.get("host") || "";
           const authRes = await fetch(
-            `/api/admin/shopify-auth?shop=${encodeURIComponent(shop)}&host=${encodeURIComponent(host)}`,
+            `/api/admin/shopify-auth?shop=${encodeURIComponent(shopifyParams.shop)}&host=${encodeURIComponent(shopifyParams.host)}`,
             { credentials: "include" }
           );
           if (authRes.ok) {
