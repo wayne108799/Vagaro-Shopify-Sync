@@ -337,6 +337,12 @@ export async function registerRoutes(
         return res.json({ message: "Skipped: no customer data" });
       }
       
+      // Skip if there's no service provider / stylist ID
+      if (!serviceProviderId) {
+        console.log(`[Vagaro Webhook] Skipping: no serviceProviderId in payload`);
+        return res.json({ message: "Skipped: no stylist identifier" });
+      }
+      
       console.log(`[Vagaro Webhook] Extracted: serviceProviderId=${serviceProviderId}, totalAmount=${totalAmount}, serviceTitle=${serviceTitle}`);
       
       // Extract actual appointment date/time from Vagaro payload - check multiple locations
