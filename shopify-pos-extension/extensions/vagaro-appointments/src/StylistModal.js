@@ -23,10 +23,24 @@ function StylistModalComponent() {
     return new Promise(function(resolve) {
       try {
         shopify.staff.current().then(function(staff) {
-          if (staff && staff.id) resolve(staff.id);
-          else resolve(null);
-        }).catch(function() { resolve(null); });
-      } catch (e) { resolve(null); }
+          if (staff && staff.id) {
+            try { localStorage.setItem('vagaro_staff_id', staff.id.toString()); } catch (e) {}
+            resolve(staff.id.toString());
+          } else {
+            var saved = null;
+            try { saved = localStorage.getItem('vagaro_staff_id'); } catch (e) {}
+            resolve(saved);
+          }
+        }).catch(function() {
+          var saved = null;
+          try { saved = localStorage.getItem('vagaro_staff_id'); } catch (e) {}
+          resolve(saved);
+        });
+      } catch (e) {
+        var saved = null;
+        try { saved = localStorage.getItem('vagaro_staff_id'); } catch (e2) {}
+        resolve(saved);
+      }
     });
   }
 
@@ -37,11 +51,11 @@ function StylistModalComponent() {
       currentStaffId.current = effectiveId;
 
       if (!effectiveId) {
-        // No staff ID available - fetch available stylists list
         var url = BACKEND_URL + '/api/pos/stylist-summary?staffId=none';
         var response = await fetch(url, { method: 'GET', headers: { 'Content-Type': 'application/json' }, mode: 'cors' });
         if (response.ok) {
           var data = await response.json();
+          data.noStaffId = true;
           setSummary(data);
         } else {
           setSummary({ found: false, availableStylists: [], noStaffId: true });
@@ -119,9 +133,10 @@ function StylistModalComponent() {
   async function linkStylist(stylistId) {
     try {
       var sid = await getEffectiveStaffId();
+      
       if (!sid) {
-        shopify.toast.show('Could not detect your POS staff ID');
-        return;
+        sid = 'pos-' + stylistId.substring(0, 8) + '-' + Date.now();
+        try { localStorage.setItem('vagaro_staff_id', sid); } catch (e) {}
       }
 
       var r = await fetch(BACKEND_URL + '/api/pos/link-stylist', {
@@ -130,13 +145,17 @@ function StylistModalComponent() {
         mode: 'cors',
         body: JSON.stringify({ stylistId: stylistId, shopifyStaffId: sid })
       });
-      if (!r.ok) throw new Error('Failed');
+      if (!r.ok) {
+        var errData = {};
+        try { errData = await r.json(); } catch (e) {}
+        throw new Error(errData.error || 'Failed');
+      }
 
       currentStaffId.current = sid;
 
       shopify.toast.show('Account linked!');
       fetchSummary(sid);
-    } catch (e) { shopify.toast.show('Failed to link'); }
+    } catch (e) { shopify.toast.show('Failed to link: ' + (e.message || '')); }
   }
 
   async function unlinkStylist() {

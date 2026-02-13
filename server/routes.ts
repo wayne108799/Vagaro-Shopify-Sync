@@ -291,9 +291,9 @@ export async function registerRoutes(
         console.log(`[Cleanup] Done. Removed ${junkStylists.length} records.`);
       }
       
-      // Clear invalid POS links (device-XXXX or unknown IDs)
+      // Clear invalid POS links (old device-XXXX or unknown IDs, but keep pos- and numeric Shopify staff IDs)
       for (const s of allStylists) {
-        if (s.shopifyStaffId && (s.shopifyStaffId.startsWith('device-') || s.shopifyStaffId === 'unknown')) {
+        if (s.shopifyStaffId && (s.shopifyStaffId.startsWith('device-') || s.shopifyStaffId === 'unknown' || s.shopifyStaffId === 'null')) {
           await storage.updateStylist(s.id, { shopifyStaffId: null });
           console.log(`[Cleanup] Cleared invalid POS link for ${s.name}: ${s.shopifyStaffId}`);
         }
@@ -1657,7 +1657,7 @@ export async function registerRoutes(
         return res.status(400).json({ error: "stylistId is required" });
       }
       
-      if (!shopifyStaffId || shopifyStaffId === 'unknown') {
+      if (!shopifyStaffId || shopifyStaffId === 'unknown' || shopifyStaffId === 'null' || shopifyStaffId === 'none') {
         return res.status(400).json({ error: "Could not detect your POS staff ID. Please try again." });
       }
       

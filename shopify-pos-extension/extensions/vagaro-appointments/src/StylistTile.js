@@ -24,8 +24,15 @@ function StylistTileComponent() {
       var staffId = null;
       try {
         var staff = await shopify.staff.current();
-        if (staff && staff.id) staffId = staff.id;
+        if (staff && staff.id) {
+          staffId = staff.id;
+          try { localStorage.setItem('vagaro_staff_id', staff.id.toString()); } catch (e) {}
+        }
       } catch (e) {}
+
+      if (!staffId) {
+        try { staffId = localStorage.getItem('vagaro_staff_id'); } catch (e) {}
+      }
 
       if (!staffId) {
         setTileProps({ title: 'My Earnings', subtitle: 'Tap to link', enabled: true });
