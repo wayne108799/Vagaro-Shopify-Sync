@@ -1,6 +1,6 @@
 import '@shopify/ui-extensions/preact';
 import { render, h } from 'preact';
-import { useState, useEffect } from 'preact/hooks';
+import { useState, useEffect, useRef } from 'preact/hooks';
 
 var BACKEND_URL = 'https://Beautyoasisadmin.replit.app';
 
@@ -12,9 +12,10 @@ function StylistModalComponent() {
   var _s1 = useState(null); var summary = _s1[0]; var setSummary = _s1[1];
   var _s2 = useState(true); var loading = _s2[0]; var setLoading = _s2[1];
   var _s3 = useState(null); var error = _s3[0]; var setError = _s3[1];
-  var _s4 = useState(null); var staffId = _s4[0]; var setStaffId = _s4[1];
   var _s5 = useState(null); var clockStatus = _s5[0]; var setClockStatus = _s5[1];
   var _s6 = useState(false); var clockLoading = _s6[0]; var setClockLoading = _s6[1];
+
+  var currentStaffId = useRef(null);
 
   useEffect(function() { fetchSummary(); }, []);
 
@@ -36,7 +37,7 @@ function StylistModalComponent() {
     setLoading(true); setError(null);
     try {
       var effectiveId = overrideStaffId || await getEffectiveStaffId();
-      setStaffId(effectiveId);
+      currentStaffId.current = effectiveId;
 
       var url = BACKEND_URL + '/api/pos/stylist-summary?staffId=' + (effectiveId || 'unknown');
       var response = await fetch(url, { method: 'GET', headers: { 'Content-Type': 'application/json' }, mode: 'cors' });
@@ -57,39 +58,71 @@ function StylistModalComponent() {
   }
 
   async function handleClockIn() {
-    if (!staffId) return; setClockLoading(true);
+    var sid = currentStaffId.current;
+    if (!sid) { shopify.toast.show('No staff ID found'); return; }
+    setClockLoading(true);
     try {
-      var r = await fetch(BACKEND_URL + '/api/pos/clock-in', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ staffId: staffId }) });
+      var r = await fetch(BACKEND_URL + '/api/pos/clock-in', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        mode: 'cors',
+        body: JSON.stringify({ staffId: sid })
+      });
       var d = await r.json();
-      if (r.ok) { shopify.toast.show('Clocked in!'); setClockStatus({ found: true, clockedIn: true, clockInTime: d.clockInTime, hoursWorked: '0.00' }); }
-      else shopify.toast.show(d.error || 'Failed');
-    } catch (e) { shopify.toast.show('Failed to clock in'); }
+      if (r.ok) {
+        shopify.toast.show('Clocked in!');
+        setClockStatus({ found: true, clockedIn: true, clockInTime: d.clockInTime, hoursWorked: '0.00' });
+      } else {
+        shopify.toast.show(d.error || 'Failed to clock in');
+      }
+    } catch (e) {
+      shopify.toast.show('Clock in error: ' + (e.message || 'unknown'));
+    }
     finally { setClockLoading(false); }
   }
 
   async function handleClockOut() {
-    if (!staffId) return; setClockLoading(true);
+    var sid = currentStaffId.current;
+    if (!sid) { shopify.toast.show('No staff ID found'); return; }
+    setClockLoading(true);
     try {
-      var r = await fetch(BACKEND_URL + '/api/pos/clock-out', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ staffId: staffId }) });
+      var r = await fetch(BACKEND_URL + '/api/pos/clock-out', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        mode: 'cors',
+        body: JSON.stringify({ staffId: sid })
+      });
       var d = await r.json();
-      if (r.ok) { shopify.toast.show('Clocked out - ' + d.hoursWorked + ' hrs'); setClockStatus({ found: true, clockedIn: false }); fetchSummary(); }
-      else shopify.toast.show(d.error || 'Failed');
-    } catch (e) { shopify.toast.show('Failed to clock out'); }
+      if (r.ok) {
+        shopify.toast.show('Clocked out - ' + d.hoursWorked + ' hrs');
+        setClockStatus({ found: true, clockedIn: false });
+        fetchSummary();
+      } else {
+        shopify.toast.show(d.error || 'Failed to clock out');
+      }
+    } catch (e) {
+      shopify.toast.show('Clock out error: ' + (e.message || 'unknown'));
+    }
     finally { setClockLoading(false); }
   }
 
   async function linkStylist(stylistId) {
     try {
-      var currentId = await getEffectiveStaffId();
-      var sendId = currentId || 'unknown';
+      var sid = await getEffectiveStaffId();
+      var sendId = sid || 'unknown';
 
-      var r = await fetch(BACKEND_URL + '/api/pos/link-stylist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stylistId: stylistId, shopifyStaffId: sendId }) });
+      var r = await fetch(BACKEND_URL + '/api/pos/link-stylist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        mode: 'cors',
+        body: JSON.stringify({ stylistId: stylistId, shopifyStaffId: sendId })
+      });
       if (!r.ok) throw new Error('Failed');
       var d = await r.json();
 
       var newLinkId = d.linkId || sendId;
       try { localStorage.setItem('vagaro_stylist_link', newLinkId); } catch (e) {}
-      setStaffId(newLinkId);
+      currentStaffId.current = newLinkId;
 
       shopify.toast.show('Account linked!');
       fetchSummary(newLinkId);
@@ -100,7 +133,7 @@ function StylistModalComponent() {
     try {
       if (apt.shopifyProductVariantId) await shopify.cart.addLineItem({ variantId: apt.shopifyProductVariantId, quantity: 1 });
       else await shopify.cart.addCustomSale({ title: apt.serviceName, price: apt.amount, quantity: 1, taxable: false });
-      await fetch(BACKEND_URL + '/api/pos/mark-loaded/' + apt.id, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      await fetch(BACKEND_URL + '/api/pos/mark-loaded/' + apt.id, { method: 'POST', headers: { 'Content-Type': 'application/json' }, mode: 'cors' });
       shopify.toast.show('Added ' + apt.serviceName); fetchSummary();
     } catch (e) { shopify.toast.show('Failed to add'); }
   }
