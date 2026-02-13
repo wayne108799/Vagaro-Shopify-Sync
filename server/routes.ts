@@ -321,6 +321,21 @@ export async function registerRoutes(
                            firstService.Name || firstService.name || "Service";
       const customerId = payload.customerId || appointment.CustomerId || appointment.customerId;
       const businessId = payload.businessId || appointment.BusinessId || appointment.businessId;
+
+      // Skip personal time blocks / blocked time - requires BOTH no customer AND keyword match
+      const blockedKeywords = ['personal time', 'block', 'break', 'lunch', 'off', 'not available', 'closed', 'meeting', 'admin'];
+      const hasBlockedKeyword = serviceTitle && blockedKeywords.some(kw => serviceTitle.toLowerCase().includes(kw));
+      const isBlockedTime = !customerId && hasBlockedKeyword;
+      if (isBlockedTime) {
+        console.log(`[Vagaro Webhook] Skipping personal time / blocked time: "${serviceTitle}", customerId: ${customerId}`);
+        return res.json({ message: "Skipped: personal time or blocked slot" });
+      }
+      
+      // Also skip if there's absolutely no customer (no customerId at all) and no meaningful service
+      if (!customerId && (!serviceTitle || serviceTitle === "Service")) {
+        console.log(`[Vagaro Webhook] Skipping: no customer and no service title`);
+        return res.json({ message: "Skipped: no customer data" });
+      }
       
       console.log(`[Vagaro Webhook] Extracted: serviceProviderId=${serviceProviderId}, totalAmount=${totalAmount}, serviceTitle=${serviceTitle}`);
       
@@ -417,10 +432,16 @@ export async function registerRoutes(
             role: employeeRole,
             commissionRate: stylist.commissionRate,
             vagaroId: serviceProviderId,
-            enabled: stylist.enabled, // Keep their current enabled status
+            enabled: stylist.enabled,
           });
         }
         console.log(`[Vagaro Webhook] Using existing stylist: ${stylist.name} (enabled: ${stylist.enabled})`);
+
+        // Skip syncing for disabled stylists
+        if (!stylist.enabled) {
+          console.log(`[Vagaro Webhook] Skipping sync for disabled stylist: ${stylist.name}`);
+          return res.json({ message: `Skipped: stylist ${stylist.name} is disabled` });
+        }
       } else {
         // Stylist doesn't exist at all - create new one
         console.log(`[Vagaro Webhook] Stylist ${serviceProviderId} not found, creating: ${employeeName}`);
