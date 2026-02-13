@@ -39,7 +39,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls, syncStylistsFromVagaro, setStylistPin, deleteStylist, getCommissionTiers, setCommissionTiers, type CommissionTier, getAdminTimeEntries, createAdminTimeEntry, updateAdminTimeEntry, deleteAdminTimeEntry, getTimeclockReport, type TimeEntry, type TimeclockReportEntry, getCommissionReport, getAdminOrders, createManualOrder, voidOrder, restoreOrder, getCommissionAdjustments, createCommissionAdjustment, deleteCommissionAdjustment, getAppointments, cancelAppointment, restoreAppointment, updateAppointmentDate, type CommissionReportEntry, type CommissionAdjustment } from "@/lib/api";
+import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls, syncStylistsFromVagaro, syncShopifyProducts, setStylistPin, deleteStylist, getCommissionTiers, setCommissionTiers, type CommissionTier, getAdminTimeEntries, createAdminTimeEntry, updateAdminTimeEntry, deleteAdminTimeEntry, getTimeclockReport, type TimeEntry, type TimeclockReportEntry, getCommissionReport, getAdminOrders, createManualOrder, voidOrder, restoreOrder, getCommissionAdjustments, createCommissionAdjustment, deleteCommissionAdjustment, getAppointments, cancelAppointment, restoreAppointment, updateAppointmentDate, type CommissionReportEntry, type CommissionAdjustment } from "@/lib/api";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 
@@ -222,6 +222,16 @@ export default function Dashboard() {
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to sync stylists");
+    },
+  });
+
+  const syncProductsMutation = useMutation({
+    mutationFn: syncShopifyProducts,
+    onSuccess: (data) => {
+      toast.success(data.message);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to sync products");
     },
   });
 
@@ -1264,6 +1274,22 @@ export default function Dashboard() {
                           data-testid="input-shopify-token"
                         />
                       </div>
+                      {isConnectedShopify && (
+                        <div className="pt-2">
+                          <Button 
+                            onClick={() => syncProductsMutation.mutate()}
+                            disabled={syncProductsMutation.isPending}
+                            variant="outline"
+                            data-testid="button-sync-products"
+                          >
+                            <RefreshCw className={`w-4 h-4 mr-2 ${syncProductsMutation.isPending ? 'animate-spin' : ''}`} />
+                            {syncProductsMutation.isPending ? "Syncing..." : "Sync Services to Shopify Products"}
+                          </Button>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Ensure all services from orders exist as Shopify products
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

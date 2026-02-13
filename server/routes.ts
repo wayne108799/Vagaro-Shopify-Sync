@@ -182,6 +182,56 @@ export async function registerRoutes(
     }
   });
 
+  // Sync all service products to Shopify (ensure every service in orders exists as a Shopify product)
+  app.post("/api/shopify/sync-products", requireAdmin, async (_req, res) => {
+    try {
+      const settings = await storage.getSettings();
+      if (!settings?.shopifyStoreUrl || !settings?.shopifyAccessToken) {
+        return res.status(400).json({ error: "Shopify not configured" });
+      }
+
+      const shopifyClient = new ShopifyClient(settings);
+      const allOrders = await storage.getOrders({});
+      
+      // Get unique service names from all orders
+      const serviceNames = new Set<string>();
+      for (const order of allOrders) {
+        if (order.serviceName && order.serviceName !== "Service") {
+          serviceNames.add(order.serviceName);
+        }
+        if (order.services) {
+          for (const svc of order.services) {
+            if (svc && svc !== "Service") {
+              serviceNames.add(svc);
+            }
+          }
+        }
+      }
+
+      const results: { service: string; status: string; productId?: string }[] = [];
+      
+      for (const serviceName of serviceNames) {
+        try {
+          const product = await shopifyClient.ensureServiceProduct(serviceName, "0", []);
+          results.push({ 
+            service: serviceName, 
+            status: product.title ? "exists" : "created",
+            productId: product.id 
+          });
+        } catch (err: any) {
+          results.push({ service: serviceName, status: `error: ${err.message}` });
+        }
+      }
+
+      res.json({ 
+        message: `Processed ${serviceNames.size} services`, 
+        results 
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Sync stylists from Vagaro
   app.post("/api/vagaro/sync-stylists", requireAdmin, async (_req, res) => {
     try {

@@ -71,6 +71,18 @@ export async function syncStylistsFromVagaro(): Promise<{ message: string; styli
   return res.json();
 }
 
+export async function syncShopifyProducts(): Promise<{ message: string; results: any[] }> {
+  const res = await fetch("/api/shopify/sync-products", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || "Failed to sync products to Shopify");
+  }
+  return res.json();
+}
+
 export async function setStylistPin(stylistId: string, pin: string): Promise<{ message: string }> {
   const res = await fetch(`/api/stylists/${stylistId}/pin`, {
     method: "POST",
