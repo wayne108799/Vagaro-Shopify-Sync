@@ -21,11 +21,16 @@ function StylistTileComponent() {
 
   async function fetchSummary() {
     try {
-      var staffId = 'unknown';
+      var staffId = null;
       try {
         var staff = await shopify.staff.current();
         if (staff && staff.id) staffId = staff.id;
       } catch (e) {}
+
+      if (!staffId) {
+        setTileProps({ title: 'My Earnings', subtitle: 'Tap to link', enabled: true });
+        return;
+      }
 
       var response = await fetch(BACKEND_URL + '/api/pos/stylist-summary?staffId=' + staffId, {
         method: 'GET',

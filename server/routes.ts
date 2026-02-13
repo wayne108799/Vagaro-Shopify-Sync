@@ -274,7 +274,7 @@ export async function registerRoutes(
     }
   });
 
-  // One-time cleanup: remove junk "Stylist Unknown" and test stylist records
+  // One-time cleanup: remove junk records and clear invalid POS links
   (async () => {
     try {
       const allStylists = await storage.getStylists();
@@ -289,6 +289,14 @@ export async function registerRoutes(
           await storage.deleteStylist(junk.id);
         }
         console.log(`[Cleanup] Done. Removed ${junkStylists.length} records.`);
+      }
+      
+      // Clear invalid POS links (device-XXXX or unknown IDs)
+      for (const s of allStylists) {
+        if (s.shopifyStaffId && (s.shopifyStaffId.startsWith('device-') || s.shopifyStaffId === 'unknown')) {
+          await storage.updateStylist(s.id, { shopifyStaffId: null });
+          console.log(`[Cleanup] Cleared invalid POS link for ${s.name}: ${s.shopifyStaffId}`);
+        }
       }
     } catch (e: any) {
       console.log(`[Cleanup] Error: ${e.message}`);
@@ -1547,7 +1555,7 @@ export async function registerRoutes(
           found: false,
           message: "Stylist not linked to this POS account",
           availableStylists: allStylists
-            .filter(s => s.enabled && !s.name.startsWith('Stylist Unknown'))
+            .filter(s => s.enabled && !s.name.startsWith('Stylist Unknown') && !s.name.startsWith('Stylist ') && !s.shopifyStaffId)
             .map(s => ({
               id: s.id,
               name: s.name,
@@ -1649,7 +1657,11 @@ export async function registerRoutes(
         return res.status(400).json({ error: "stylistId is required" });
       }
       
-      const linkId = shopifyStaffId || `device-${Date.now()}`;
+      if (!shopifyStaffId || shopifyStaffId === 'unknown') {
+        return res.status(400).json({ error: "Could not detect your POS staff ID. Please try again." });
+      }
+      
+      const linkId = shopifyStaffId;
       
       // Clear any existing link to this staff ID from other stylists
       const allStylists = await storage.getStylists();
@@ -1669,6 +1681,28 @@ export async function registerRoutes(
       res.json({ success: true, stylist: { id: stylist.id, name: stylist.name }, linkId });
     } catch (error: any) {
       console.error("[POS API] Error linking stylist:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Unlink stylist from POS
+  app.post("/api/pos/unlink-stylist", posCorsMW, async (req, res) => {
+    try {
+      const { shopifyStaffId } = req.body;
+      if (!shopifyStaffId) {
+        return res.status(400).json({ error: "staffId required" });
+      }
+      
+      const allStylists = await storage.getStylists();
+      const linked = allStylists.find(s => s.shopifyStaffId === shopifyStaffId);
+      if (linked) {
+        await storage.updateStylist(linked.id, { shopifyStaffId: null });
+        console.log(`[POS API] Unlinked stylist ${linked.name} from ${shopifyStaffId}`);
+        return res.json({ success: true, unlinked: linked.name });
+      }
+      
+      res.json({ success: true, message: "No link found" });
+    } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
