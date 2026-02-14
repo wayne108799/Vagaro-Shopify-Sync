@@ -268,35 +268,59 @@ function StylistModalComponent() {
       ),
 
       h('s-section', { heading: "Today's Earnings" },
-        h('s-box', { padding: 'base' },
-          h('s-text', { variant: 'headingXl' }, fmtMoney(today.totalEarnings)),
-          h('s-box', { padding: 'tight' },
-            h('s-text', { variant: 'bodyMd' }, 'Sales: ' + fmtMoney(today.sales)),
-            h('s-text', { variant: 'bodyMd' }, 'Commission: ' + fmtMoney(today.commission)),
-            h('s-text', { variant: 'bodyMd' }, 'Tips: ' + fmtMoney(today.tips))
-          ),
-          h('s-box', { padding: 'tight' },
-            h('s-badge', { tone: 'success' }, today.paidOrders + ' completed'),
-            today.pendingOrders > 0 ? h('s-badge', { tone: 'warning' }, today.pendingOrders + ' pending') : null
-          )
-        )
+        (function() {
+          var rate = parseFloat(sty.hourlyRate || '0');
+          var todayHourlyPay = 0;
+          var todayHrs = 0;
+          if (clockStatus && clockStatus.clockedIn && clockStatus.hoursWorked) {
+            todayHrs = parseFloat(clockStatus.hoursWorked || '0');
+            todayHourlyPay = rate * todayHrs;
+          }
+          var todayTotal = parseFloat(today.totalEarnings || '0') + todayHourlyPay;
+
+          return h('s-box', { padding: 'base' },
+            h('s-text', { variant: 'headingXl' }, fmtMoney(todayTotal)),
+            h('s-box', { padding: 'tight' },
+              h('s-text', { variant: 'bodyMd' }, 'Sales: ' + fmtMoney(today.sales)),
+              h('s-text', { variant: 'bodyMd' }, 'Commission: ' + fmtMoney(today.commission)),
+              h('s-text', { variant: 'bodyMd' }, 'Tips: ' + fmtMoney(today.tips)),
+              todayHrs > 0 ? h('s-text', { variant: 'bodyMd' }, 'Hours: ' + todayHrs.toFixed(2) + ' hrs') : null,
+              todayHourlyPay > 0 ? h('s-text', { variant: 'bodyMd' }, 'Hourly Pay: ' + fmtMoney(todayHourlyPay)) : null
+            ),
+            h('s-box', { padding: 'tight' },
+              h('s-badge', { tone: 'success' }, today.paidOrders + ' completed'),
+              today.pendingOrders > 0 ? h('s-badge', { tone: 'warning' }, today.pendingOrders + ' pending') : null
+            )
+          );
+        })()
       ),
 
       h('s-section', { heading: 'Pay Period  \u2022  ' + fmtDateRange(period.start, period.end) },
-        h('s-box', { padding: 'base' },
-          h('s-text', { variant: 'headingXl' }, fmtMoney(period.totalEarnings)),
-          h('s-text', { variant: 'bodySm' }, period.orderCount + ' orders'),
-          h('s-box', { padding: 'tight' },
-            h('s-text', { variant: 'bodyMd' }, 'Sales: ' + fmtMoney(period.sales)),
-            h('s-text', { variant: 'bodyMd' }, 'Commission: ' + fmtMoney(period.commission)),
-            h('s-text', { variant: 'bodyMd' }, 'Tips: ' + fmtMoney(period.tips))
-          ),
-          sty.hourlyRate !== '0' && sty.hourlyRate !== null
-            ? h('s-box', { padding: 'tight' },
-                h('s-text', { variant: 'bodyMd' }, 'Hourly: ' + fmtMoney(period.hourlyEarnings) + ' (' + period.hoursWorked + ' hrs)')
-              )
-            : null
-        )
+        (function() {
+          var rate = parseFloat(sty.hourlyRate || '0');
+          var liveHours = parseFloat(period.hoursWorked || '0');
+          if (clockStatus && clockStatus.clockedIn && clockStatus.hoursWorked) {
+            var serverHours = parseFloat(period.hoursWorked || '0');
+            var liveSessionHours = parseFloat(clockStatus.hoursWorked || '0');
+            liveHours = Math.max(serverHours, liveSessionHours);
+          }
+          var liveHourlyPay = (rate * liveHours);
+          var liveTotalEarnings = parseFloat(period.commission || '0') + parseFloat(period.tips || '0') + liveHourlyPay;
+
+          return h('s-box', { padding: 'base' },
+            h('s-text', { variant: 'headingXl' }, fmtMoney(liveTotalEarnings)),
+            h('s-text', { variant: 'bodySm' }, period.orderCount + ' orders'),
+            h('s-box', { padding: 'tight' },
+              h('s-text', { variant: 'bodyMd' }, 'Sales: ' + fmtMoney(period.sales)),
+              h('s-text', { variant: 'bodyMd' }, 'Commission: ' + fmtMoney(period.commission)),
+              h('s-text', { variant: 'bodyMd' }, 'Tips: ' + fmtMoney(period.tips))
+            ),
+            h('s-box', { padding: 'tight' },
+              h('s-text', { variant: 'bodyMd' }, 'Hours: ' + liveHours.toFixed(2) + ' hrs'),
+              rate > 0 ? h('s-text', { variant: 'bodyMd' }, 'Hourly Pay: ' + fmtMoney(liveHourlyPay) + ' @ ' + fmtMoney(rate) + '/hr') : null
+            )
+          );
+        })()
       ),
 
       pending.length > 0
