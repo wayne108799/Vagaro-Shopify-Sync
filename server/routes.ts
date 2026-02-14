@@ -1523,7 +1523,8 @@ export async function registerRoutes(
       const todayTips = paidToday.reduce((sum, o) => sum + parseFloat(o.tipAmount), 0);
       const todayCommission = paidToday.reduce((sum, o) => sum + parseFloat(o.commissionAmount), 0);
       
-      const periodOrders = await storage.getOrdersForPeriod(payPeriod.start, payPeriod.end, stylist.id, false);
+      const allPeriodOrders = await storage.getOrdersForPeriod(payPeriod.start, payPeriod.end, stylist.id, false);
+      const periodOrders = allPeriodOrders.filter(o => o.status === 'paid');
       const periodSales = periodOrders.reduce((sum, o) => sum + parseFloat(o.totalAmount), 0);
       const periodTips = periodOrders.reduce((sum, o) => sum + parseFloat(o.tipAmount), 0);
       const periodCommission = periodOrders.reduce((sum, o) => sum + parseFloat(o.commissionAmount), 0);

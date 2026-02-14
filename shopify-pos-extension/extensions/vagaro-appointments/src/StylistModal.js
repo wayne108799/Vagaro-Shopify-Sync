@@ -202,8 +202,13 @@ function StylistModalComponent() {
 
   var sty = summary.stylist, today = summary.today, period = summary.payPeriod, pending = summary.pendingAppointments || [];
 
-  return h('s-page', { title: sty.name },
+  return h('s-page', { title: 'My Earnings' },
     h('s-scroll-box', null, h('s-box', { padding: 'base' },
+
+      h('s-box', { padding: 'base' },
+        h('s-text', { variant: 'headingXl' }, sty.name),
+        h('s-text', { variant: 'bodyMd' }, sty.role || 'Stylist')
+      ),
 
       h('s-section', { heading: 'Time Clock' }, h('s-box', { padding: 'base' },
         clockStatus && clockStatus.clockedIn
