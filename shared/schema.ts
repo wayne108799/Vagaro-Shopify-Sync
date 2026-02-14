@@ -71,6 +71,7 @@ export const settings = pgTable("settings", {
   vagaroRegion: text("vagaro_region").default("us"),
   shopifyStoreUrl: text("shopify_store_url"),
   shopifyAccessToken: text("shopify_access_token"),
+  adminPin: text("admin_pin"),
   defaultOrderTag: text("default_order_tag").notNull().default("vagaro-sync"),
   taxSetting: text("tax_setting").notNull().default("auto"),
   emailCustomer: boolean("email_customer").notNull().default(true),

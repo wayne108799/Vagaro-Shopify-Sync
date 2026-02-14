@@ -10,87 +10,81 @@ export default function extension() {
 
 function StylistModalComponent() {
   var _s1 = useState(null); var summary = _s1[0]; var setSummary = _s1[1];
-  var _s2 = useState(true); var loading = _s2[0]; var setLoading = _s2[1];
+  var _s2 = useState(false); var loading = _s2[0]; var setLoading = _s2[1];
   var _s3 = useState(null); var error = _s3[0]; var setError = _s3[1];
-  var _s5 = useState(null); var clockStatus = _s5[0]; var setClockStatus = _s5[1];
-  var _s6 = useState(false); var clockLoading = _s6[0]; var setClockLoading = _s6[1];
+  var _s4 = useState(null); var clockStatus = _s4[0]; var setClockStatus = _s4[1];
+  var _s5 = useState(false); var clockLoading = _s5[0]; var setClockLoading = _s5[1];
+  var _s6 = useState(''); var pin = _s6[0]; var setPin = _s6[1];
+  var _s7 = useState(null); var loggedInStylistId = _s7[0]; var setLoggedInStylistId = _s7[1];
+  var _s8 = useState(false); var pinLoading = _s8[0]; var setPinLoading = _s8[1];
+  var _s9 = useState(null); var pinError = _s9[0]; var setPinError = _s9[1];
 
-  var currentStaffId = useRef(null);
-
-  useEffect(function() { fetchSummary(); }, []);
-
-  function getEffectiveStaffId() {
-    return new Promise(function(resolve) {
-      try {
-        shopify.staff.current().then(function(staff) {
-          if (staff && staff.id) {
-            try { localStorage.setItem('vagaro_staff_id', staff.id.toString()); } catch (e) {}
-            resolve(staff.id.toString());
-          } else {
-            var saved = null;
-            try { saved = localStorage.getItem('vagaro_staff_id'); } catch (e) {}
-            resolve(saved);
-          }
-        }).catch(function() {
-          var saved = null;
-          try { saved = localStorage.getItem('vagaro_staff_id'); } catch (e) {}
-          resolve(saved);
-        });
-      } catch (e) {
-        var saved = null;
-        try { saved = localStorage.getItem('vagaro_staff_id'); } catch (e2) {}
-        resolve(saved);
-      }
-    });
-  }
-
-  async function fetchSummary(overrideStaffId) {
-    setLoading(true); setError(null);
+  async function verifyPin() {
+    if (!pin || pin.length < 4) {
+      setPinError('Enter at least 4 digits');
+      return;
+    }
+    setPinLoading(true);
+    setPinError(null);
     try {
-      var effectiveId = overrideStaffId || await getEffectiveStaffId();
-      currentStaffId.current = effectiveId;
-
-      if (!effectiveId) {
-        var url = BACKEND_URL + '/api/pos/stylist-summary?staffId=none';
-        var response = await fetch(url, { method: 'GET', headers: { 'Content-Type': 'application/json' }, mode: 'cors' });
-        if (response.ok) {
-          var data = await response.json();
-          data.noStaffId = true;
-          setSummary(data);
-        } else {
-          setSummary({ found: false, availableStylists: [], noStaffId: true });
-        }
+      var r = await fetch(BACKEND_URL + '/api/pos/verify-pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        mode: 'cors',
+        body: JSON.stringify({ pin: pin })
+      });
+      if (!r.ok) {
+        var errData = {};
+        try { errData = await r.json(); } catch (e) {}
+        setPinError(errData.error || 'Invalid PIN');
         return;
       }
+      var data = await r.json();
+      if (data.role === 'admin') {
+        setPinError('Admin PIN not supported here');
+        return;
+      }
+      if (data.stylistId) {
+        setLoggedInStylistId(data.stylistId);
+        setPin('');
+        fetchSummary(data.stylistId);
+      }
+    } catch (e) {
+      setPinError('Connection error');
+    } finally {
+      setPinLoading(false);
+    }
+  }
 
-      var url = BACKEND_URL + '/api/pos/stylist-summary?staffId=' + effectiveId;
+  async function fetchSummary(stylistId) {
+    setLoading(true); setError(null);
+    try {
+      var url = BACKEND_URL + '/api/pos/stylist-summary-by-id?stylistId=' + stylistId;
       var response = await fetch(url, { method: 'GET', headers: { 'Content-Type': 'application/json' }, mode: 'cors' });
       if (!response.ok) throw new Error('HTTP ' + response.status);
       var data = await response.json();
       setSummary(data);
-
-      if (effectiveId && data.found) fetchClockStatus(effectiveId);
+      fetchClockStatus(stylistId);
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
   }
 
-  async function fetchClockStatus(id) {
+  async function fetchClockStatus(stylistId) {
     try {
-      var r = await fetch(BACKEND_URL + '/api/pos/clock-status?staffId=' + id, { method: 'GET', headers: { 'Content-Type': 'application/json' }, mode: 'cors' });
+      var r = await fetch(BACKEND_URL + '/api/pos/clock-status?stylistId=' + stylistId, { method: 'GET', headers: { 'Content-Type': 'application/json' }, mode: 'cors' });
       if (r.ok) setClockStatus(await r.json());
     } catch (e) {}
   }
 
   async function handleClockIn() {
-    var sid = currentStaffId.current;
-    if (!sid) { shopify.toast.show('No staff ID found'); return; }
+    if (!loggedInStylistId) return;
     setClockLoading(true);
     try {
       var r = await fetch(BACKEND_URL + '/api/pos/clock-in', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         mode: 'cors',
-        body: JSON.stringify({ staffId: sid })
+        body: JSON.stringify({ stylistId: loggedInStylistId })
       });
       var d = await r.json();
       if (r.ok) {
@@ -100,81 +94,41 @@ function StylistModalComponent() {
         shopify.toast.show(d.error || 'Failed to clock in');
       }
     } catch (e) {
-      shopify.toast.show('Clock in error: ' + (e.message || 'unknown'));
+      shopify.toast.show('Clock in error');
     }
     finally { setClockLoading(false); }
   }
 
   async function handleClockOut() {
-    var sid = currentStaffId.current;
-    if (!sid) { shopify.toast.show('No staff ID found'); return; }
+    if (!loggedInStylistId) return;
     setClockLoading(true);
     try {
       var r = await fetch(BACKEND_URL + '/api/pos/clock-out', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         mode: 'cors',
-        body: JSON.stringify({ staffId: sid })
+        body: JSON.stringify({ stylistId: loggedInStylistId })
       });
       var d = await r.json();
       if (r.ok) {
         shopify.toast.show('Clocked out - ' + d.hoursWorked + ' hrs');
         setClockStatus({ found: true, clockedIn: false });
-        fetchSummary();
+        fetchSummary(loggedInStylistId);
       } else {
         shopify.toast.show(d.error || 'Failed to clock out');
       }
     } catch (e) {
-      shopify.toast.show('Clock out error: ' + (e.message || 'unknown'));
+      shopify.toast.show('Clock out error');
     }
     finally { setClockLoading(false); }
   }
 
-  async function linkStylist(stylistId) {
-    try {
-      var sid = await getEffectiveStaffId();
-      
-      if (!sid) {
-        sid = 'pos-' + String(stylistId) + '-' + Date.now();
-        try { localStorage.setItem('vagaro_staff_id', sid); } catch (e) {}
-      }
-
-      var r = await fetch(BACKEND_URL + '/api/pos/link-stylist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        mode: 'cors',
-        body: JSON.stringify({ stylistId: stylistId, shopifyStaffId: String(sid) })
-      });
-      if (!r.ok) {
-        var errData = {};
-        try { errData = await r.json(); } catch (e) {}
-        throw new Error(errData.error || 'Failed');
-      }
-
-      currentStaffId.current = sid;
-
-      shopify.toast.show('Account linked!');
-      fetchSummary(sid);
-    } catch (e) { shopify.toast.show('Link error: ' + (e.message || 'unknown')); }
-  }
-
-  async function unlinkStylist() {
-    try {
-      var sid = currentStaffId.current;
-      if (!sid) { shopify.toast.show('No staff ID'); return; }
-      var r = await fetch(BACKEND_URL + '/api/pos/unlink-stylist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        mode: 'cors',
-        body: JSON.stringify({ shopifyStaffId: sid })
-      });
-      if (r.ok) {
-        shopify.toast.show('Account unlinked');
-        fetchSummary(sid);
-      } else {
-        shopify.toast.show('Failed to unlink');
-      }
-    } catch (e) { shopify.toast.show('Unlink error'); }
+  function handleLogout() {
+    setLoggedInStylistId(null);
+    setSummary(null);
+    setClockStatus(null);
+    setPin('');
+    setPinError(null);
   }
 
   async function addToCart(apt) {
@@ -182,7 +136,7 @@ function StylistModalComponent() {
       if (apt.shopifyProductVariantId) await shopify.cart.addLineItem({ variantId: apt.shopifyProductVariantId, quantity: 1 });
       else await shopify.cart.addCustomSale({ title: apt.serviceName, price: apt.amount, quantity: 1, taxable: false });
       await fetch(BACKEND_URL + '/api/pos/mark-loaded/' + apt.id, { method: 'POST', headers: { 'Content-Type': 'application/json' }, mode: 'cors' });
-      shopify.toast.show('Added ' + apt.serviceName); fetchSummary();
+      shopify.toast.show('Added ' + apt.serviceName); fetchSummary(loggedInStylistId);
     } catch (e) { shopify.toast.show('Failed to add'); }
   }
 
@@ -191,6 +145,29 @@ function StylistModalComponent() {
     var d = new Date(iso), hr = d.getHours(), mn = d.getMinutes(), ap = hr >= 12 ? 'PM' : 'AM';
     hr = hr % 12; hr = hr || 12;
     return hr + ':' + (mn < 10 ? '0' : '') + mn + ' ' + ap;
+  }
+
+  if (!loggedInStylistId) {
+    return h('s-page', { title: 'My Earnings' },
+      h('s-scroll-box', null, h('s-box', { padding: 'base' },
+        h('s-text', { variant: 'headingMd' }, 'Enter Your PIN'),
+        h('s-text', null, 'Enter your stylist PIN to view your earnings'),
+        h('s-box', { padding: 'base' },
+          h('s-text-field', {
+            label: 'PIN',
+            type: 'password',
+            value: pin,
+            onInput: function(e) { setPin(e.target.value); }
+          })
+        ),
+        pinError ? h('s-banner', { status: 'critical' }, pinError) : null,
+        h('s-button', {
+          variant: 'primary',
+          disabled: pinLoading || pin.length < 4,
+          onClick: verifyPin
+        }, pinLoading ? 'Verifying...' : 'Log In')
+      ))
+    );
   }
 
   if (loading) {
@@ -203,23 +180,17 @@ function StylistModalComponent() {
     return h('s-page', { title: 'My Earnings' },
       h('s-scroll-box', null, h('s-box', { padding: 'base' },
         h('s-banner', { status: 'critical', title: 'Error' }, error),
-        h('s-button', { onClick: function() { fetchSummary(); } }, 'Retry')
+        h('s-button', { onClick: function() { fetchSummary(loggedInStylistId); } }, 'Retry'),
+        h('s-button', { variant: 'destructive', onClick: handleLogout }, 'Log Out')
       ))
     );
   }
 
   if (!summary || !summary.found) {
-    var stylists = summary && summary.availableStylists ? summary.availableStylists : [];
-    return h('s-page', { title: 'Link Your Account' },
+    return h('s-page', { title: 'My Earnings' },
       h('s-scroll-box', null, h('s-box', { padding: 'base' },
-        h('s-text', { variant: 'headingMd' }, 'Select Your Name'),
-        h('s-text', null, 'Link your POS account to track your earnings'),
-        stylists.map(function(s) {
-          return h('s-box', { key: s.id, padding: 'base' },
-            h('s-text', { variant: 'headingMd' }, s.name),
-            h('s-button', { onClick: function() { linkStylist(s.id); } }, 'This is me')
-          );
-        })
+        h('s-banner', { status: 'critical' }, 'Could not load your data'),
+        h('s-button', { onClick: handleLogout }, 'Try Again')
       ))
     );
   }
@@ -271,9 +242,9 @@ function StylistModalComponent() {
         })
       )) : null,
 
-      h('s-button', { onClick: function() { fetchSummary(); } }, 'Refresh'),
+      h('s-button', { onClick: function() { fetchSummary(loggedInStylistId); } }, 'Refresh'),
       h('s-box', { padding: 'base' },
-        h('s-button', { variant: 'destructive', onClick: unlinkStylist }, 'Switch Account')
+        h('s-button', { variant: 'destructive', onClick: handleLogout }, 'Log Out')
       )
     ))
   );

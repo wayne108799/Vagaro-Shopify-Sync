@@ -167,7 +167,8 @@ export async function registerRoutes(
           syncOnUpdated: false,
         });
       }
-      res.json(settingsData);
+      const { adminPin: adminPinHash, ...safeSettings } = settingsData;
+      res.json({ ...safeSettings, adminPin: adminPinHash ? true : false });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -176,9 +177,25 @@ export async function registerRoutes(
   app.patch("/api/settings", requireAdmin, async (req, res) => {
     try {
       const settingsData = await storage.upsertSettings(req.body);
-      res.json(settingsData);
+      const { adminPin: _adminPinHash, ...safeResult } = settingsData;
+      res.json({ ...safeResult, adminPin: _adminPinHash ? true : false });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/set-admin-pin", requireAdmin, async (req, res) => {
+    try {
+      const { pin } = req.body;
+      if (!pin || pin.length < 4) {
+        return res.status(400).json({ error: "PIN must be at least 4 digits" });
+      }
+      const crypto = await import("crypto");
+      const pinHash = crypto.createHash("sha256").update(pin).digest("hex");
+      await storage.upsertSettings({ adminPin: pinHash });
+      res.json({ message: "Admin PIN set successfully" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 
@@ -274,7 +291,6 @@ export async function registerRoutes(
     }
   });
 
-  // One-time cleanup: remove junk records and clear invalid POS links
   (async () => {
     try {
       const allStylists = await storage.getStylists();
@@ -286,16 +302,17 @@ export async function registerRoutes(
       if (junkStylists.length > 0) {
         console.log(`[Cleanup] Removing ${junkStylists.length} junk stylist records...`);
         for (const junk of junkStylists) {
-          await storage.deleteStylist(junk.id);
+          try {
+            await storage.deleteStylist(junk.id);
+          } catch (e: any) {
+            console.log(`[Cleanup] Skipping ${junk.name} (has related orders)`);
+          }
         }
-        console.log(`[Cleanup] Done. Removed ${junkStylists.length} records.`);
       }
       
-      // Clear invalid POS links (old device-XXXX or unknown IDs, but keep pos- and numeric Shopify staff IDs)
       for (const s of allStylists) {
-        if (s.shopifyStaffId && (s.shopifyStaffId.startsWith('device-') || s.shopifyStaffId === 'unknown' || s.shopifyStaffId === 'null')) {
+        if (s.shopifyStaffId) {
           await storage.updateStylist(s.id, { shopifyStaffId: null });
-          console.log(`[Cleanup] Cleared invalid POS link for ${s.name}: ${s.shopifyStaffId}`);
         }
       }
     } catch (e: any) {
@@ -1446,6 +1463,118 @@ export async function registerRoutes(
     next();
   };
   
+  app.post("/api/pos/verify-pin", posCorsMW, async (req, res) => {
+    try {
+      const { pin } = req.body;
+      if (!pin) {
+        return res.status(400).json({ error: "PIN is required" });
+      }
+      
+      const crypto = await import("crypto");
+      const pinHash = crypto.createHash("sha256").update(pin).digest("hex");
+      
+      const settingsData = await storage.getSettings();
+      if (settingsData?.adminPin && pinHash === settingsData.adminPin) {
+        console.log(`[POS API] Admin PIN verified`);
+        return res.json({ found: true, role: 'admin', stylistId: null });
+      }
+      
+      const allStylists = await storage.getStylists();
+      const stylist = allStylists.find(s => s.pinHash === pinHash && s.enabled);
+      
+      if (!stylist) {
+        return res.status(401).json({ error: "Invalid PIN" });
+      }
+      
+      console.log(`[POS API] PIN verified for stylist: ${stylist.name}`);
+      res.json({ found: true, role: 'stylist', stylistId: stylist.id, stylistName: stylist.name });
+    } catch (error: any) {
+      console.error("[POS API] PIN verify error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/pos/stylist-summary-by-id", posCorsMW, async (req, res) => {
+    try {
+      const stylistId = req.query.stylistId as string;
+      if (!stylistId) {
+        return res.status(400).json({ error: "stylistId required" });
+      }
+      
+      const stylist = await storage.getStylist(stylistId);
+      if (!stylist) {
+        return res.status(404).json({ error: "Stylist not found" });
+      }
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const payPeriod = getPayPeriod(new Date());
+      
+      const todayOrders = await storage.getOrders({
+        stylistId: stylist.id,
+        fromDate: today
+      });
+      
+      const paidToday = todayOrders.filter(o => o.status === 'paid' && !o.voidedAt);
+      const pendingToday = todayOrders.filter(o => o.status === 'draft');
+      
+      const todaySales = paidToday.reduce((sum, o) => sum + parseFloat(o.totalAmount), 0);
+      const todayTips = paidToday.reduce((sum, o) => sum + parseFloat(o.tipAmount), 0);
+      const todayCommission = paidToday.reduce((sum, o) => sum + parseFloat(o.commissionAmount), 0);
+      
+      const periodOrders = await storage.getOrdersForPeriod(payPeriod.start, payPeriod.end, stylist.id, false);
+      const periodSales = periodOrders.reduce((sum, o) => sum + parseFloat(o.totalAmount), 0);
+      const periodTips = periodOrders.reduce((sum, o) => sum + parseFloat(o.tipAmount), 0);
+      const periodCommission = periodOrders.reduce((sum, o) => sum + parseFloat(o.commissionAmount), 0);
+      
+      const periodHours = await storage.getPayPeriodHours(stylist.id, payPeriod.start, payPeriod.end);
+      const hourlyEarnings = periodHours * parseFloat(stylist.hourlyRate || "0");
+      
+      const commissionRate = await storage.getApplicableCommissionRate(stylist.id, periodSales);
+      
+      res.json({
+        found: true,
+        stylist: {
+          id: stylist.id,
+          name: stylist.name,
+          role: stylist.role,
+          commissionRate: commissionRate,
+          hourlyRate: stylist.hourlyRate
+        },
+        today: {
+          sales: todaySales.toFixed(2),
+          tips: todayTips.toFixed(2),
+          commission: todayCommission.toFixed(2),
+          totalEarnings: (todayCommission + todayTips).toFixed(2),
+          paidOrders: paidToday.length,
+          pendingOrders: pendingToday.length
+        },
+        payPeriod: {
+          start: payPeriod.start,
+          end: payPeriod.end,
+          sales: periodSales.toFixed(2),
+          tips: periodTips.toFixed(2),
+          commission: periodCommission.toFixed(2),
+          hourlyEarnings: hourlyEarnings.toFixed(2),
+          hoursWorked: periodHours,
+          totalEarnings: (periodCommission + periodTips + hourlyEarnings).toFixed(2),
+          orderCount: periodOrders.length
+        },
+        pendingAppointments: pendingToday.map(o => ({
+          id: o.id,
+          customerName: o.customerName,
+          serviceName: o.serviceName || o.services?.[0] || 'Service',
+          amount: o.totalAmount,
+          shopifyProductVariantId: o.shopifyProductVariantId
+        }))
+      });
+    } catch (error: any) {
+      console.error("[POS API] Error fetching stylist summary by ID:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get pending appointments for POS extension (no auth required for POS extensions)
   app.get("/api/pos/pending-appointments", posCorsMW, async (req, res) => {
     try {
@@ -1708,23 +1837,22 @@ export async function registerRoutes(
     }
   });
 
-  // POS Clock In
   app.post("/api/pos/clock-in", posCorsMW, async (req, res) => {
     try {
-      const { staffId } = req.body;
+      const { staffId, stylistId } = req.body;
       
-      if (!staffId) {
-        return res.status(400).json({ error: "staffId is required" });
+      var stylist: any = null;
+      if (stylistId) {
+        stylist = await storage.getStylist(stylistId);
+      } else if (staffId) {
+        const allStylists = await storage.getStylists();
+        stylist = allStylists.find(s => s.shopifyStaffId === staffId);
       }
-      
-      const allStylists = await storage.getStylists();
-      const stylist = allStylists.find(s => s.shopifyStaffId === staffId);
       
       if (!stylist) {
-        return res.status(404).json({ error: "Stylist not found for this POS account" });
+        return res.status(404).json({ error: "Stylist not found" });
       }
       
-      // Check if already clocked in
       const currentEntry = await storage.getOpenTimeEntry(stylist.id);
       if (currentEntry) {
         return res.status(400).json({ error: "Already clocked in", clockedInAt: currentEntry.clockIn });
@@ -1739,20 +1867,20 @@ export async function registerRoutes(
     }
   });
   
-  // POS Clock Out
   app.post("/api/pos/clock-out", posCorsMW, async (req, res) => {
     try {
-      const { staffId } = req.body;
+      const { staffId, stylistId } = req.body;
       
-      if (!staffId) {
-        return res.status(400).json({ error: "staffId is required" });
+      var stylist: any = null;
+      if (stylistId) {
+        stylist = await storage.getStylist(stylistId);
+      } else if (staffId) {
+        const allStylists = await storage.getStylists();
+        stylist = allStylists.find(s => s.shopifyStaffId === staffId);
       }
       
-      const allStylists = await storage.getStylists();
-      const stylist = allStylists.find(s => s.shopifyStaffId === staffId);
-      
       if (!stylist) {
-        return res.status(404).json({ error: "Stylist not found for this POS account" });
+        return res.status(404).json({ error: "Stylist not found" });
       }
       
       const entry = await storage.clockOut(stylist.id);
@@ -1772,17 +1900,18 @@ export async function registerRoutes(
     }
   });
   
-  // POS Clock Status
   app.get("/api/pos/clock-status", posCorsMW, async (req, res) => {
     try {
       const staffId = req.query.staffId as string;
+      const stylistId = req.query.stylistId as string;
       
-      if (!staffId) {
-        return res.status(400).json({ error: "staffId query parameter required" });
+      var stylist: any = null;
+      if (stylistId) {
+        stylist = await storage.getStylist(stylistId);
+      } else if (staffId) {
+        const allStylists = await storage.getStylists();
+        stylist = allStylists.find(s => s.shopifyStaffId === staffId);
       }
-      
-      const allStylists = await storage.getStylists();
-      const stylist = allStylists.find(s => s.shopifyStaffId === staffId);
       
       if (!stylist) {
         return res.json({ found: false });

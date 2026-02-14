@@ -25,6 +25,7 @@ import {
   Percent,
   Menu,
   X,
+  Lock,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,7 +40,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls, syncStylistsFromVagaro, syncShopifyProducts, setStylistPin, deleteStylist, getCommissionTiers, setCommissionTiers, type CommissionTier, getAdminTimeEntries, createAdminTimeEntry, updateAdminTimeEntry, deleteAdminTimeEntry, getTimeclockReport, type TimeEntry, type TimeclockReportEntry, getCommissionReport, getAdminOrders, createManualOrder, voidOrder, restoreOrder, getCommissionAdjustments, createCommissionAdjustment, deleteCommissionAdjustment, getAppointments, cancelAppointment, restoreAppointment, updateAppointmentDate, type CommissionReportEntry, type CommissionAdjustment } from "@/lib/api";
+import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls, syncStylistsFromVagaro, syncShopifyProducts, setStylistPin, setAdminPin, deleteStylist, getCommissionTiers, setCommissionTiers, type CommissionTier, getAdminTimeEntries, createAdminTimeEntry, updateAdminTimeEntry, deleteAdminTimeEntry, getTimeclockReport, type TimeEntry, type TimeclockReportEntry, getCommissionReport, getAdminOrders, createManualOrder, voidOrder, restoreOrder, getCommissionAdjustments, createCommissionAdjustment, deleteCommissionAdjustment, getAppointments, cancelAppointment, restoreAppointment, updateAppointmentDate, type CommissionReportEntry, type CommissionAdjustment } from "@/lib/api";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 
@@ -51,6 +52,7 @@ export default function Dashboard() {
   const [pinStylistId, setPinStylistId] = useState<string | null>(null);
   const [pinStylistName, setPinStylistName] = useState<string>("");
   const [pinValue, setPinValue] = useState("");
+  const [adminPinValue, setAdminPinValue] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteStylistId, setDeleteStylistId] = useState<string | null>(null);
   const [deleteStylistName, setDeleteStylistName] = useState<string>("");
@@ -246,6 +248,17 @@ export default function Dashboard() {
     },
     onError: (error: any) => {
       toast.error(error.message || "Failed to set PIN");
+    },
+  });
+
+  const setAdminPinMutation = useMutation({
+    mutationFn: (pin: string) => setAdminPin(pin),
+    onSuccess: () => {
+      toast.success("Admin PIN set successfully");
+      setAdminPinValue("");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to set admin PIN");
     },
   });
 
@@ -1290,6 +1303,45 @@ export default function Dashboard() {
                           </p>
                         </div>
                       )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded bg-purple-500/10 flex items-center justify-center text-purple-500">
+                        <Lock className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <CardTitle>Admin PIN</CardTitle>
+                        <CardDescription>Set a PIN for admin access on POS devices</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-2">
+                      <Label>Admin PIN (4+ digits)</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="password"
+                          placeholder="Enter new admin PIN"
+                          value={adminPinValue}
+                          onChange={(e) => setAdminPinValue(e.target.value.replace(/\D/g, ""))}
+                          maxLength={8}
+                          data-testid="input-admin-pin"
+                        />
+                        <Button
+                          onClick={() => setAdminPinMutation.mutate(adminPinValue)}
+                          disabled={adminPinValue.length < 4 || setAdminPinMutation.isPending}
+                          data-testid="button-save-admin-pin"
+                        >
+                          {setAdminPinMutation.isPending ? "Saving..." : "Set PIN"}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {settings.adminPin ? "Admin PIN is set. Enter a new PIN to change it." : "No admin PIN set yet."}
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
