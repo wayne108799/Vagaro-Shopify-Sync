@@ -155,9 +155,9 @@ function StylistModalComponent() {
         h('s-box', { padding: 'base' },
           h('s-text-field', {
             label: 'PIN',
-            type: 'password',
+            type: 'number',
             value: pin,
-            onInput: function(e) { setPin(e.target.value); }
+            onChange: function(e) { setPin(e.currentTarget.value); }
           })
         ),
         pinError ? h('s-banner', { status: 'critical' }, pinError) : null,
