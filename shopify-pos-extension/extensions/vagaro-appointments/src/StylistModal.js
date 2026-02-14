@@ -20,8 +20,8 @@ function StylistModalComponent() {
   var _s9 = useState(null); var pinError = _s9[0]; var setPinError = _s9[1];
 
   async function verifyPin() {
-    if (!pin || pin.length < 4) {
-      setPinError('Enter at least 4 digits');
+    if (!pin || pin.length < 4 || pin.length > 6) {
+      setPinError('PIN must be 4-6 digits');
       return;
     }
     setPinLoading(true);
@@ -157,15 +157,20 @@ function StylistModalComponent() {
             label: 'PIN',
             type: 'number',
             value: pin,
-            onChange: function(e) { setPin(e.currentTarget.value); }
+            maxLength: 6,
+            onChange: function(e) {
+              var val = (e.currentTarget.value || '').replace(/\D/g, '').slice(0, 6);
+              setPin(val);
+              if (pinError) setPinError(null);
+            }
           })
         ),
         pinError ? h('s-banner', { status: 'critical' }, pinError) : null,
-        h('s-button', {
+        pin.length >= 4 ? h('s-button', {
           variant: 'primary',
-          disabled: pinLoading || pin.length < 4,
+          disabled: pinLoading,
           onClick: verifyPin
-        }, pinLoading ? 'Verifying...' : 'Log In')
+        }, pinLoading ? 'Verifying...' : 'Log In (' + pin.length + '-digit PIN)') : null
       ))
     );
   }
