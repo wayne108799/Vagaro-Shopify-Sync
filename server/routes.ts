@@ -1657,8 +1657,9 @@ export async function registerRoutes(
         return res.status(400).json({ error: "stylistId is required" });
       }
       
-      if (!shopifyStaffId || shopifyStaffId === 'unknown' || shopifyStaffId === 'null' || shopifyStaffId === 'none') {
-        return res.status(400).json({ error: "Could not detect your POS staff ID. Please try again." });
+      if (!shopifyStaffId || shopifyStaffId === 'unknown' || shopifyStaffId === 'null' || shopifyStaffId === 'undefined' || shopifyStaffId === 'none') {
+        console.log(`[POS API] Rejected link: shopifyStaffId value was '${shopifyStaffId}'`);
+        return res.status(400).json({ error: "Staff ID invalid (" + (shopifyStaffId || 'empty') + "). Please try again." });
       }
       
       const linkId = shopifyStaffId;

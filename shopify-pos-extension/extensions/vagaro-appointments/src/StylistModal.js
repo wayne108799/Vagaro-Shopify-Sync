@@ -135,7 +135,7 @@ function StylistModalComponent() {
       var sid = await getEffectiveStaffId();
       
       if (!sid) {
-        sid = 'pos-' + stylistId.substring(0, 8) + '-' + Date.now();
+        sid = 'pos-' + String(stylistId) + '-' + Date.now();
         try { localStorage.setItem('vagaro_staff_id', sid); } catch (e) {}
       }
 
@@ -143,7 +143,7 @@ function StylistModalComponent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         mode: 'cors',
-        body: JSON.stringify({ stylistId: stylistId, shopifyStaffId: sid })
+        body: JSON.stringify({ stylistId: stylistId, shopifyStaffId: String(sid) })
       });
       if (!r.ok) {
         var errData = {};
@@ -155,7 +155,7 @@ function StylistModalComponent() {
 
       shopify.toast.show('Account linked!');
       fetchSummary(sid);
-    } catch (e) { shopify.toast.show('Failed to link: ' + (e.message || '')); }
+    } catch (e) { shopify.toast.show('Link error: ' + (e.message || 'unknown')); }
   }
 
   async function unlinkStylist() {
