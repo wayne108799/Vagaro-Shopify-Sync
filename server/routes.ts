@@ -315,6 +315,17 @@ export async function registerRoutes(
           await storage.updateStylist(s.id, { shopifyStaffId: null });
         }
       }
+
+      // Fix any orders stuck in pending_checkout - mark them as paid
+      const stuckOrders = await storage.getOrders({});
+      const pendingCheckout = stuckOrders.filter(o => o.status === 'pending_checkout');
+      if (pendingCheckout.length > 0) {
+        console.log(`[Cleanup] Fixing ${pendingCheckout.length} orders stuck in pending_checkout...`);
+        for (const o of pendingCheckout) {
+          await storage.updateOrder(o.id, { status: 'paid', paidAt: new Date() });
+          console.log(`[Cleanup] Marked ${o.customerName} order as paid ($${o.totalAmount})`);
+        }
+      }
     } catch (e: any) {
       console.log(`[Cleanup] Error: ${e.message}`);
     }
@@ -684,10 +695,10 @@ export async function registerRoutes(
       // If not found by order ID and this came from a draft, try to find by draft order ID
       if (!order && isFromDraft) {
         // The draft order ID might be in tags or we need to match by other criteria
-        // Try matching by customer email and recent draft orders
+        // Try matching by customer email and recent draft/pending orders
         const customerEmail = shopifyOrder.email;
         const draftOrders = allOrders.filter(o => 
-          o.status === "draft" && 
+          (o.status === "draft" || o.status === "pending_checkout") && 
           o.shopifyDraftOrderId && 
           o.customerEmail === customerEmail
         );
@@ -1647,16 +1658,32 @@ export async function registerRoutes(
   app.post("/api/pos/mark-loaded/:id", posCorsMW, async (req, res) => {
     try {
       const orderId = req.params.id;
-      // Update order to mark it as loaded to POS cart
-      const order = await storage.updateOrder(orderId, { 
-        status: 'pending_checkout' 
-      });
-      
-      if (!order) {
+      const existingOrder = await storage.getOrder(orderId);
+      if (!existingOrder) {
         return res.status(404).json({ error: "Order not found" });
       }
+
+      const stylist = await storage.getStylist(existingOrder.stylistId);
+      const totalAmount = parseFloat(existingOrder.totalAmount);
       
-      console.log(`[POS API] Marked order ${orderId} as loaded to cart`);
+      let commissionAmount = parseFloat(existingOrder.commissionAmount);
+      if (stylist) {
+        const payPeriod = getPayPeriod(new Date());
+        const allPeriodOrders = await storage.getOrdersForPeriod(payPeriod.start, payPeriod.end, stylist.id, false);
+        const periodSales = allPeriodOrders
+          .filter(o => o.status === 'paid' && o.id !== orderId)
+          .reduce((sum, o) => sum + parseFloat(o.totalAmount), 0);
+        const commissionRate = await storage.getApplicableCommissionRate(stylist.id, periodSales + totalAmount);
+        commissionAmount = (totalAmount * commissionRate) / 100;
+      }
+
+      const order = await storage.updateOrder(orderId, { 
+        status: 'paid',
+        paidAt: new Date(),
+        commissionAmount: commissionAmount.toFixed(2),
+      });
+      
+      console.log(`[POS API] Order ${orderId} marked as paid - Amount: $${totalAmount.toFixed(2)}, Commission: $${commissionAmount.toFixed(2)}`);
       res.json({ success: true, order });
     } catch (error: any) {
       console.error("[POS API] Error marking order:", error);
