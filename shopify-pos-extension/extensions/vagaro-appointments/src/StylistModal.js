@@ -18,6 +18,9 @@ function StylistModalComponent() {
   var _s7 = useState(null); var loggedInStylistId = _s7[0]; var setLoggedInStylistId = _s7[1];
   var _s8 = useState(false); var pinLoading = _s8[0]; var setPinLoading = _s8[1];
   var _s9 = useState(null); var pinError = _s9[0]; var setPinError = _s9[1];
+  var _s10 = useState(null); var editingId = _s10[0]; var setEditingId = _s10[1];
+  var _s11 = useState(''); var editPrice = _s11[0]; var setEditPrice = _s11[1];
+  var _s12 = useState(null); var addingId = _s12[0]; var setAddingId = _s12[1];
 
   async function verifyPin() {
     if (!pin || pin.length < 4 || pin.length > 6) {
@@ -131,13 +134,73 @@ function StylistModalComponent() {
     setPinError(null);
   }
 
+  function startEditPrice(apt) {
+    setEditingId(apt.id);
+    setEditPrice(apt.amount || '');
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditPrice('');
+  }
+
   async function addToCart(apt) {
+    var price = parseFloat(apt.amount);
+    if (price <= 0) {
+      startEditPrice(apt);
+      shopify.toast.show('Please set a price before adding');
+      return;
+    }
     try {
-      if (apt.shopifyProductVariantId) await shopify.cart.addLineItem({ variantId: apt.shopifyProductVariantId, quantity: 1 });
-      else await shopify.cart.addCustomSale({ title: apt.serviceName, price: apt.amount, quantity: 1, taxable: false });
-      await fetch(BACKEND_URL + '/api/pos/mark-loaded/' + apt.id, { method: 'POST', headers: { 'Content-Type': 'application/json' }, mode: 'cors' });
-      shopify.toast.show('Added ' + apt.serviceName); fetchSummary(loggedInStylistId);
+      setAddingId(apt.id);
+      var markRes = await fetch(BACKEND_URL + '/api/pos/mark-loaded/' + apt.id, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, mode: 'cors',
+        body: JSON.stringify({ price: apt.amount })
+      });
+      var markData = await markRes.json();
+      var vid = markData.variantId || apt.shopifyProductVariantId;
+      if (!vid) {
+        shopify.toast.show('Could not find Shopify product for ' + apt.serviceName);
+        setAddingId(null);
+        return;
+      }
+      await shopify.cart.addLineItem({ variantId: vid, quantity: 1, price: parseFloat(apt.amount) });
+      shopify.toast.show('Added ' + apt.serviceName);
+      fetchSummary(loggedInStylistId);
     } catch (e) { shopify.toast.show('Failed to add'); }
+    finally { setAddingId(null); }
+  }
+
+  async function addToCartWithPrice(apt) {
+    var newPrice = parseFloat(editPrice);
+    if (isNaN(newPrice) || newPrice <= 0) {
+      shopify.toast.show('Enter a valid price greater than $0');
+      return;
+    }
+    try {
+      setAddingId(apt.id);
+      await fetch(BACKEND_URL + '/api/pos/update-price/' + apt.id, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, mode: 'cors',
+        body: JSON.stringify({ price: newPrice.toFixed(2) })
+      });
+      var markRes = await fetch(BACKEND_URL + '/api/pos/mark-loaded/' + apt.id, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, mode: 'cors',
+        body: JSON.stringify({ price: newPrice.toFixed(2) })
+      });
+      var markData = await markRes.json();
+      var vid = markData.variantId || apt.shopifyProductVariantId;
+      if (!vid) {
+        shopify.toast.show('Could not find Shopify product for ' + apt.serviceName);
+        setAddingId(null);
+        return;
+      }
+      await shopify.cart.addLineItem({ variantId: vid, quantity: 1, price: newPrice });
+      setEditingId(null);
+      setEditPrice('');
+      shopify.toast.show('Added ' + apt.serviceName + ' ($' + newPrice.toFixed(2) + ')');
+      fetchSummary(loggedInStylistId);
+    } catch (e) { shopify.toast.show('Failed to add'); }
+    finally { setAddingId(null); }
   }
 
   function fmtTime(iso) {
@@ -326,14 +389,47 @@ function StylistModalComponent() {
       pending.length > 0
         ? h('s-section', { heading: 'Pending Appointments (' + pending.length + ')' },
             pending.map(function(apt) {
+              var isEditing = editingId === apt.id;
+              var isAdding = addingId === apt.id;
+              var isZeroPrice = parseFloat(apt.amount) <= 0;
+
+              if (isEditing) {
+                return h('s-box', { key: apt.id, padding: 'base' },
+                  h('s-box', { padding: 'tight' },
+                    h('s-text', { variant: 'headingMd' }, apt.customerName),
+                    h('s-text', { variant: 'bodySm' }, apt.serviceName)
+                  ),
+                  h('s-box', { padding: 'tight' },
+                    h('s-text', { variant: 'bodyMd' }, isZeroPrice ? 'Enter price for this service:' : 'Edit price:'),
+                    h('s-text-field', {
+                      type: 'number',
+                      value: editPrice,
+                      label: 'Price ($)',
+                      onChange: function(val) { setEditPrice(val); }
+                    }),
+                    h('s-box', { paddingBlockStart: 'small', inlineAlignment: 'trailing' },
+                      h('s-button', {
+                        variant: 'primary',
+                        onClick: function() { addToCartWithPrice(apt); },
+                        disabled: isAdding
+                      }, isAdding ? 'Adding...' : 'Set Price & Add to Cart'),
+                      h('s-button', { kind: 'plain', onClick: cancelEdit }, 'Cancel')
+                    )
+                  )
+                );
+              }
+
               return h('s-box', { key: apt.id, padding: 'base' },
                 h('s-box', { padding: 'tight' },
                   h('s-text', { variant: 'headingMd' }, apt.customerName),
                   h('s-text', { variant: 'bodySm' }, apt.serviceName)
                 ),
                 h('s-box', { padding: 'tight' },
-                  h('s-text', { variant: 'headingLg' }, fmtMoney(apt.amount)),
-                  h('s-button', { variant: 'primary', onClick: function() { addToCart(apt); } }, 'Add to Cart')
+                  h('s-text', { variant: 'headingLg' }, isZeroPrice ? '$0.00 - Price Required' : fmtMoney(apt.amount)),
+                  h('s-box', { inlineAlignment: 'trailing' },
+                    h('s-button', { variant: 'primary', onClick: function() { addToCart(apt); }, disabled: isAdding }, isAdding ? 'Adding...' : 'Add to Cart'),
+                    h('s-button', { kind: 'plain', onClick: function() { startEditPrice(apt); } }, 'Edit Price')
+                  )
                 )
               );
             })

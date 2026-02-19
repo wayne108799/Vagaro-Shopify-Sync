@@ -1654,17 +1654,95 @@ export async function registerRoutes(
     }
   });
   
+  // Ensure Shopify product exists for a service and return variant ID
+  app.post("/api/pos/ensure-product", posCorsMW, async (req, res) => {
+    try {
+      const { serviceName, price } = req.body;
+      if (!serviceName) {
+        return res.status(400).json({ error: "serviceName required" });
+      }
+      const settings = await storage.getSettings();
+      if (!settings?.shopifyStoreUrl || !settings?.shopifyAccessToken) {
+        return res.status(500).json({ error: "Shopify not configured" });
+      }
+      const shopifyClient = new ShopifyClient(settings);
+      const product = await shopifyClient.ensureServiceProduct(serviceName, price || "0.00", []);
+      const variantId = product.variants.length > 0 ? product.variants[0].id : null;
+      console.log(`[POS API] Ensured product for "${serviceName}" => variant ${variantId}`);
+      res.json({ variantId, productId: product.id, title: product.title });
+    } catch (error: any) {
+      console.error("[POS API] Error ensuring product:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Update appointment price
+  app.post("/api/pos/update-price/:id", posCorsMW, async (req, res) => {
+    try {
+      const orderId = req.params.id;
+      const { price } = req.body;
+      if (price === undefined || price === null) {
+        return res.status(400).json({ error: "price required" });
+      }
+      const existingOrder = await storage.getOrder(orderId);
+      if (!existingOrder) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      const totalAmount = parseFloat(price);
+      let commissionAmount = 0;
+      const stylist = await storage.getStylist(existingOrder.stylistId);
+      if (stylist) {
+        const payPeriod = getPayPeriod(new Date());
+        const allPeriodOrders = await storage.getOrdersForPeriod(payPeriod.start, payPeriod.end, stylist.id, false);
+        const periodSales = allPeriodOrders
+          .filter(o => o.status === 'paid' && o.id !== orderId)
+          .reduce((sum, o) => sum + parseFloat(o.totalAmount), 0);
+        const commissionRate = await storage.getApplicableCommissionRate(stylist.id, periodSales + totalAmount);
+        commissionAmount = (totalAmount * commissionRate) / 100;
+      }
+      const order = await storage.updateOrder(orderId, {
+        totalAmount: totalAmount.toFixed(2),
+        commissionAmount: commissionAmount.toFixed(2),
+      });
+      console.log(`[POS API] Price updated for order ${orderId}: $${totalAmount.toFixed(2)}`);
+      res.json({ success: true, order });
+    } catch (error: any) {
+      console.error("[POS API] Error updating price:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Mark appointment as loaded to cart (for tracking)
   app.post("/api/pos/mark-loaded/:id", posCorsMW, async (req, res) => {
     try {
       const orderId = req.params.id;
+      const { price: overridePrice } = req.body || {};
       const existingOrder = await storage.getOrder(orderId);
       if (!existingOrder) {
         return res.status(404).json({ error: "Order not found" });
       }
 
+      const totalAmount = overridePrice !== undefined ? parseFloat(overridePrice) : parseFloat(existingOrder.totalAmount);
+
+      // Ensure Shopify product exists for this service
+      let variantId = existingOrder.shopifyProductVariantId;
+      if (!variantId) {
+        try {
+          const settings = await storage.getSettings();
+          if (settings?.shopifyStoreUrl && settings?.shopifyAccessToken) {
+            const shopifyClient = new ShopifyClient(settings);
+            const product = await shopifyClient.ensureServiceProduct(existingOrder.serviceName, totalAmount.toFixed(2), []);
+            if (product.variants.length > 0) {
+              variantId = product.variants[0].id;
+              console.log(`[POS API] Created/found product for "${existingOrder.serviceName}" => variant ${variantId}`);
+            }
+          }
+        } catch (productErr: any) {
+          console.error(`[POS API] Failed to ensure product: ${productErr.message}`);
+        }
+      }
+
       const stylist = await storage.getStylist(existingOrder.stylistId);
-      const totalAmount = parseFloat(existingOrder.totalAmount);
       
       let commissionAmount = parseFloat(existingOrder.commissionAmount);
       if (stylist) {
@@ -1680,11 +1758,13 @@ export async function registerRoutes(
       const order = await storage.updateOrder(orderId, { 
         status: 'paid',
         paidAt: new Date(),
+        totalAmount: totalAmount.toFixed(2),
         commissionAmount: commissionAmount.toFixed(2),
+        shopifyProductVariantId: variantId,
       });
       
-      console.log(`[POS API] Order ${orderId} marked as paid - Amount: $${totalAmount.toFixed(2)}, Commission: $${commissionAmount.toFixed(2)}`);
-      res.json({ success: true, order });
+      console.log(`[POS API] Order ${orderId} marked as paid - Amount: $${totalAmount.toFixed(2)}, Commission: $${commissionAmount.toFixed(2)}, Variant: ${variantId}`);
+      res.json({ success: true, order, variantId });
     } catch (error: any) {
       console.error("[POS API] Error marking order:", error);
       res.status(500).json({ error: error.message });
