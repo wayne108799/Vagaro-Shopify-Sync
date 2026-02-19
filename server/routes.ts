@@ -1602,14 +1602,13 @@ export async function registerRoutes(
       
       const stylistMap = new Map(allStylists.map(s => [s.id, s.name]));
       
-      // Get orders for today
-      const allOrders = await storage.getOrders({ fromDate: filterDate });
+      // Get all draft orders and filter by appointment date (not created date)
+      const allOrders = await storage.getOrders({ status: 'draft' });
       
       const pendingAppointments = allOrders
         .filter(order => {
           const orderDate = order.appointmentDate || order.createdAt;
           const isToday = orderDate && orderDate >= filterDate && orderDate <= endOfDay;
-          const isDraft = order.status === 'draft';
           
           // If staff is a linked stylist, only show their appointments
           // If staff is not linked (manager/owner), show all appointments
@@ -1617,7 +1616,7 @@ export async function registerRoutes(
             ? order.stylistId === linkedStylist.id 
             : true;
           
-          return isDraft && isToday && matchesStylist;
+          return isToday && matchesStylist;
         })
         .map(order => ({
           id: order.id,
