@@ -37,6 +37,16 @@ export async function getStylistStats(stylistId: string) {
   return res.json();
 }
 
+export async function updateOrderPrice(orderId: string, price: string) {
+  const res = await fetch(`/api/admin/orders/${orderId}/update-price`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ price }),
+  });
+  if (!res.ok) throw new Error("Failed to update order price");
+  return res.json();
+}
+
 export async function getSettings(): Promise<Settings> {
   const res = await fetch("/api/settings");
   if (!res.ok) throw new Error("Failed to fetch settings");

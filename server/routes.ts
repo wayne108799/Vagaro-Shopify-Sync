@@ -781,18 +781,34 @@ export async function registerRoutes(
   // Stats endpoint for stylist earnings
   app.get("/api/stylists/:id/stats", async (req, res) => {
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const stylistId = req.params.id;
+      const payPeriod = getPayPeriod(new Date());
       
-      const paidOrders = await storage.getOrders({
-        stylistId: req.params.id,
-        status: "paid",
-        fromDate: today,
+      const allStylistOrders = await storage.getOrders({ stylistId, status: 'paid' });
+      const periodStart = new Date(payPeriod.start + "T00:00:00");
+      const periodEnd = new Date(payPeriod.end + "T23:59:59.999");
+      const paidOrders = allStylistOrders.filter(o => {
+        if (o.voidedAt) return false;
+        const paidDate = o.paidAt || o.createdAt;
+        return paidDate && paidDate >= periodStart && paidDate <= periodEnd;
       });
 
       const totalSales = paidOrders.reduce((sum, o) => sum + parseFloat(o.totalAmount), 0);
       const totalCommission = paidOrders.reduce((sum, o) => sum + parseFloat(o.commissionAmount), 0);
       const totalTips = paidOrders.reduce((sum, o) => sum + parseFloat(o.tipAmount), 0);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayEnd = new Date(today);
+      todayEnd.setHours(23, 59, 59, 999);
+      
+      const todayOrders = paidOrders.filter(o => {
+        const orderDate = o.appointmentDate || o.paidAt || o.createdAt;
+        return orderDate && orderDate >= today && orderDate <= todayEnd;
+      });
+      const todaySales = todayOrders.reduce((sum, o) => sum + parseFloat(o.totalAmount), 0);
+      const todayCommission = todayOrders.reduce((sum, o) => sum + parseFloat(o.commissionAmount), 0);
+      const todayTips = todayOrders.reduce((sum, o) => sum + parseFloat(o.tipAmount), 0);
 
       res.json({
         totalSales: totalSales.toFixed(2),
@@ -800,6 +816,12 @@ export async function registerRoutes(
         totalTips: totalTips.toFixed(2),
         totalEarnings: (totalCommission + totalTips).toFixed(2),
         orderCount: paidOrders.length,
+        todaySales: todaySales.toFixed(2),
+        todayCommission: todayCommission.toFixed(2),
+        todayTips: todayTips.toFixed(2),
+        todayEarnings: (todayCommission + todayTips).toFixed(2),
+        todayOrderCount: todayOrders.length,
+        payPeriod: { start: payPeriod.start, end: payPeriod.end },
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -1132,6 +1154,45 @@ export async function registerRoutes(
       if (!order) {
         return res.status(404).json({ error: "Order not found" });
       }
+      res.json(order);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin - update order price
+  app.post("/api/admin/orders/:id/update-price", requireAdmin, async (req, res) => {
+    try {
+      const { price } = req.body;
+      if (price === undefined || price === null) {
+        return res.status(400).json({ error: "price required" });
+      }
+      const existingOrder = await storage.getOrder(req.params.id);
+      if (!existingOrder) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+      const totalAmount = parseFloat(price);
+      let commissionAmount = 0;
+      const stylist = await storage.getStylist(existingOrder.stylistId);
+      if (stylist) {
+        const payPeriod = getPayPeriod(new Date());
+        const periodStart = new Date(payPeriod.start + "T00:00:00");
+        const periodEnd = new Date(payPeriod.end + "T23:59:59.999");
+        const allPaidOrders = await storage.getOrders({ stylistId: stylist.id, status: 'paid' });
+        const periodSales = allPaidOrders
+          .filter(o => {
+            if (o.voidedAt || o.id === req.params.id) return false;
+            const paidDate = o.paidAt || o.createdAt;
+            return paidDate && paidDate >= periodStart && paidDate <= periodEnd;
+          })
+          .reduce((sum, o) => sum + parseFloat(o.totalAmount), 0);
+        const commissionRate = await storage.getApplicableCommissionRate(stylist.id, periodSales + totalAmount);
+        commissionAmount = (totalAmount * commissionRate) / 100;
+      }
+      const order = await storage.updateOrder(req.params.id, {
+        totalAmount: totalAmount.toFixed(2),
+        commissionAmount: commissionAmount.toFixed(2),
+      });
       res.json(order);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

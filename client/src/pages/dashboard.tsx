@@ -40,7 +40,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls, syncStylistsFromVagaro, syncShopifyProducts, setStylistPin, setAdminPin, deleteStylist, getCommissionTiers, setCommissionTiers, type CommissionTier, getAdminTimeEntries, createAdminTimeEntry, updateAdminTimeEntry, deleteAdminTimeEntry, getTimeclockReport, type TimeEntry, type TimeclockReportEntry, getCommissionReport, getAdminOrders, createManualOrder, voidOrder, restoreOrder, getCommissionAdjustments, createCommissionAdjustment, deleteCommissionAdjustment, getAppointments, cancelAppointment, restoreAppointment, updateAppointmentDate, type CommissionReportEntry, type CommissionAdjustment } from "@/lib/api";
+import { getStylists, getOrders, getStylistStats, getSettings, updateSettings, updateStylist, getWebhookUrls, syncStylistsFromVagaro, syncShopifyProducts, setStylistPin, setAdminPin, deleteStylist, getCommissionTiers, setCommissionTiers, type CommissionTier, getAdminTimeEntries, createAdminTimeEntry, updateAdminTimeEntry, deleteAdminTimeEntry, getTimeclockReport, type TimeEntry, type TimeclockReportEntry, getCommissionReport, getAdminOrders, createManualOrder, voidOrder, restoreOrder, getCommissionAdjustments, createCommissionAdjustment, deleteCommissionAdjustment, getAppointments, cancelAppointment, restoreAppointment, updateAppointmentDate, updateOrderPrice, type CommissionReportEntry, type CommissionAdjustment } from "@/lib/api";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 
@@ -100,6 +100,8 @@ export default function Dashboard() {
   const [editAppointmentDialogOpen, setEditAppointmentDialogOpen] = useState(false);
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
   const [editAppointmentDate, setEditAppointmentDate] = useState("");
+  const [editingPriceOrderId, setEditingPriceOrderId] = useState<string | null>(null);
+  const [editPriceValue, setEditPriceValue] = useState("");
   const queryClient = useQueryClient();
 
   const { data: stylists = [] } = useQuery({
@@ -193,6 +195,21 @@ export default function Dashboard() {
     navigator.clipboard.writeText(text);
     toast.success(`${label} copied to clipboard`);
   };
+
+  const updatePriceMutation = useMutation({
+    mutationFn: ({ orderId, price }: { orderId: string; price: string }) => updateOrderPrice(orderId, price),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stylist-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["stylist-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      setEditingPriceOrderId(null);
+      setEditPriceValue("");
+      toast.success("Price updated successfully");
+    },
+    onError: () => {
+      toast.error("Failed to update price");
+    },
+  });
 
   const updateSettingsMutation = useMutation({
     mutationFn: updateSettings,
@@ -1530,7 +1547,12 @@ export default function Dashboard() {
                     </CardHeader>
                     <CardContent>
                       <div className="text-2xl font-bold" data-testid="stat-sales">${stats.totalSales}</div>
-                      <p className="text-xs text-muted-foreground mt-1">Last 24 hours</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {stats.payPeriod ? `Pay period: ${stats.payPeriod.start} to ${stats.payPeriod.end}` : 'Current pay period'}
+                      </p>
+                      {stats.todaySales && parseFloat(stats.todaySales) > 0 && (
+                        <p className="text-xs text-muted-foreground mt-0.5">Today: ${stats.todaySales}</p>
+                      )}
                     </CardContent>
                   </Card>
                   <Card>
@@ -1541,6 +1563,9 @@ export default function Dashboard() {
                     <CardContent>
                       <div className="text-2xl font-bold text-primary" data-testid="stat-commission">${stats.totalCommission}</div>
                       <p className="text-xs text-muted-foreground mt-1">Based on {selectedStylist.commissionRate}% rate</p>
+                      {stats.todayCommission && parseFloat(stats.todayCommission) > 0 && (
+                        <p className="text-xs text-muted-foreground mt-0.5">Today: ${stats.todayCommission}</p>
+                      )}
                     </CardContent>
                   </Card>
                   <Card>
@@ -1561,7 +1586,7 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between">
                       <div>
                         <CardTitle>Recent Paid Orders</CardTitle>
-                        <CardDescription>Sales processed through Shopify</CardDescription>
+                        <CardDescription>All paid orders for this stylist</CardDescription>
                       </div>
                     </div>
                   </CardHeader>
@@ -1579,7 +1604,10 @@ export default function Dashboard() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {stylistOrders.map((order) => (
+                        {stylistOrders.map((order) => {
+                          const isEditing = editingPriceOrderId === order.id;
+                          const isZeroPrice = parseFloat(order.totalAmount) <= 0;
+                          return (
                           <TableRow key={order.id} data-testid={`order-row-${order.id}`}>
                             <TableCell className="font-mono text-xs font-medium">{order.vagaroAppointmentId}</TableCell>
                             <TableCell className="text-muted-foreground text-xs">{format(new Date(order.createdAt), "PPp")}</TableCell>
@@ -1591,7 +1619,52 @@ export default function Dashboard() {
                                 ))}
                               </div>
                             </TableCell>
-                            <TableCell className="text-right">${parseFloat(order.totalAmount).toFixed(2)}</TableCell>
+                            <TableCell className="text-right">
+                              {isEditing ? (
+                                <div className="flex items-center gap-1 justify-end">
+                                  <Input
+                                    type="number"
+                                    className="w-20 h-7 text-xs"
+                                    value={editPriceValue}
+                                    onChange={(e) => setEditPriceValue(e.target.value)}
+                                    placeholder="0.00"
+                                    data-testid={`input-price-${order.id}`}
+                                  />
+                                  <Button
+                                    size="sm"
+                                    className="h-7 px-2 text-xs"
+                                    onClick={() => updatePriceMutation.mutate({ orderId: order.id, price: editPriceValue })}
+                                    disabled={updatePriceMutation.isPending}
+                                    data-testid={`button-save-price-${order.id}`}
+                                  >
+                                    Save
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-2 text-xs"
+                                    onClick={() => { setEditingPriceOrderId(null); setEditPriceValue(""); }}
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1 justify-end">
+                                  <span className={isZeroPrice ? "text-red-500 font-medium" : ""}>
+                                    ${parseFloat(order.totalAmount).toFixed(2)}
+                                  </span>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 px-1"
+                                    onClick={() => { setEditingPriceOrderId(order.id); setEditPriceValue(order.totalAmount); }}
+                                    data-testid={`button-edit-price-${order.id}`}
+                                  >
+                                    <Pencil className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              )}
+                            </TableCell>
                             <TableCell className="text-right text-green-600 font-medium">
                               {parseFloat(order.tipAmount) > 0 ? `+$${parseFloat(order.tipAmount).toFixed(2)}` : '-'}
                             </TableCell>
@@ -1599,7 +1672,8 @@ export default function Dashboard() {
                               ${(parseFloat(order.commissionAmount) + parseFloat(order.tipAmount)).toFixed(2)}
                             </TableCell>
                           </TableRow>
-                        ))}
+                          );
+                        })}
                         {stylistOrders.length === 0 && (
                           <TableRow>
                             <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
