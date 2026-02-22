@@ -470,24 +470,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllAppointments(startDate: string, endDate: string, stylistId?: string, status?: string): Promise<Order[]> {
-    // Filter by appointmentDate (service date) rather than createdAt
+    const effectiveDate = sql`COALESCE(${orders.appointmentDate}, ${orders.createdAt})`;
     const conditions = [
-      gte(orders.appointmentDate, new Date(startDate + "T00:00:00")),
-      lte(orders.appointmentDate, new Date(endDate + "T23:59:59.999")),
+      sql`${effectiveDate} >= ${new Date(startDate + "T00:00:00")}`,
+      sql`${effectiveDate} <= ${new Date(endDate + "T23:59:59.999")}`,
     ];
     
     if (stylistId) {
       conditions.push(eq(orders.stylistId, stylistId));
     }
     
-    // Filter by status if provided (all, draft, completed, canceled, deleted)
     if (status && status !== "all") {
       conditions.push(eq(orders.status, status));
     }
     
     return await db.select().from(orders)
       .where(and(...conditions))
-      .orderBy(desc(orders.appointmentDate));
+      .orderBy(sql`${effectiveDate} DESC`);
   }
 
   async getCommissionAdjustments(filters?: { stylistId?: string; periodStart?: string; periodEnd?: string }): Promise<CommissionAdjustment[]> {
