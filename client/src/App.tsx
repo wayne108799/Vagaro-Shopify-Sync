@@ -9,7 +9,7 @@ import AdminLogin from "@/pages/admin-login";
 import StylistLogin from "@/pages/stylist-login";
 import StylistDashboard from "@/pages/stylist-dashboard";
 import NotFound from "@/pages/not-found";
-import { setAdminToken } from "@/lib/api";
+import { setAdminToken, getAdminToken } from "@/lib/api";
 
 function getShopifyParams() {
   const params = new URLSearchParams(window.location.search);
@@ -24,9 +24,19 @@ function ProtectedDashboard() {
 
   useEffect(() => {
     async function checkAuth() {
+      const existingToken = getAdminToken();
+      const headers: Record<string, string> = {};
+      if (existingToken) {
+        headers['Authorization'] = `Bearer ${existingToken}`;
+      }
+
       try {
-        const meRes = await fetch("/api/admin/me", { credentials: "include" });
+        const meRes = await fetch("/api/admin/me", { credentials: "include", headers });
         if (meRes.ok) {
+          const data = await meRes.json();
+          if (data.token) {
+            setAdminToken(data.token);
+          }
           setState("authenticated");
           return;
         }

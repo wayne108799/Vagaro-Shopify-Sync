@@ -1448,14 +1448,29 @@ export async function registerRoutes(
 
   app.get("/api/admin/me", async (req, res) => {
     try {
-      if (!req.session.adminId) {
+      let adminId = req.session.adminId;
+      let adminUsername = req.session.adminUsername;
+
+      if (!adminId) {
+        const authHeader = req.headers.authorization;
+        if (authHeader?.startsWith('Bearer ')) {
+          const tokenData = adminTokens.get(authHeader.slice(7));
+          if (tokenData && tokenData.expiresAt > Date.now()) {
+            adminId = tokenData.adminId;
+            adminUsername = tokenData.adminUsername;
+          }
+        }
+      }
+
+      if (!adminId) {
         return res.status(401).json({ error: "Not authenticated" });
       }
-      const user = await storage.getUser(req.session.adminId);
+      const user = await storage.getUser(adminId);
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
-      res.json({ id: user.id, username: user.username });
+      const token = generateAdminToken(user.id, user.username);
+      res.json({ id: user.id, username: user.username, token });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
