@@ -9,6 +9,7 @@ import AdminLogin from "@/pages/admin-login";
 import StylistLogin from "@/pages/stylist-login";
 import StylistDashboard from "@/pages/stylist-dashboard";
 import NotFound from "@/pages/not-found";
+import { setAdminToken } from "@/lib/api";
 
 function getShopifyParams() {
   const params = new URLSearchParams(window.location.search);
@@ -39,6 +40,10 @@ function ProtectedDashboard() {
             { credentials: "include" }
           );
           if (authRes.ok) {
+            const data = await authRes.json();
+            if (data.token) {
+              setAdminToken(data.token);
+            }
             setState("authenticated");
             return;
           }

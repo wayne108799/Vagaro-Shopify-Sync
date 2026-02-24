@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { setAdminToken } from "@/lib/api";
 
 export default function AdminLogin() {
   const [, setLocation] = useLocation();
@@ -49,6 +50,9 @@ export default function AdminLogin() {
         throw new Error(data.error || "Authentication failed");
       }
 
+      if (data.token) {
+        setAdminToken(data.token);
+      }
       toast({ title: "Success", description: isRegistering ? "Admin account created" : "Logged in successfully" });
       window.location.href = "/";
     } catch (error: any) {

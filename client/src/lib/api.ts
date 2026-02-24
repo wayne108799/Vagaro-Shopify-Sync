@@ -1,13 +1,39 @@
 import type { Stylist, Order, Settings } from "@shared/schema";
 
+let adminToken: string | null = sessionStorage.getItem('adminToken');
+
+export function setAdminToken(token: string | null) {
+  adminToken = token;
+  if (token) {
+    sessionStorage.setItem('adminToken', token);
+  } else {
+    sessionStorage.removeItem('adminToken');
+  }
+}
+
+export function getAdminToken(): string | null {
+  return adminToken;
+}
+
+function adminFetch(url: string, init?: RequestInit): Promise<Response> {
+  const headers: Record<string, string> = {};
+  if (init?.headers) {
+    Object.assign(headers, init.headers);
+  }
+  if (adminToken) {
+    headers['Authorization'] = `Bearer ${adminToken}`;
+  }
+  return fetch(url, { ...init, headers, credentials: 'include' });
+}
+
 export async function getStylists(): Promise<Stylist[]> {
-  const res = await fetch("/api/stylists");
+  const res = await adminFetch("/api/stylists");
   if (!res.ok) throw new Error("Failed to fetch stylists");
   return res.json();
 }
 
 export async function updateStylist(id: string, data: Partial<Stylist>): Promise<Stylist> {
-  const res = await fetch(`/api/stylists/${id}`, {
+  const res = await adminFetch(`/api/stylists/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -26,19 +52,19 @@ export async function getOrders(filters?: {
   if (filters?.status) params.set("status", filters.status);
   if (filters?.fromDate) params.set("fromDate", filters.fromDate);
   
-  const res = await fetch(`/api/orders?${params}`);
+  const res = await adminFetch(`/api/orders?${params}`);
   if (!res.ok) throw new Error("Failed to fetch orders");
   return res.json();
 }
 
 export async function getStylistStats(stylistId: string) {
-  const res = await fetch(`/api/stylists/${stylistId}/stats`);
+  const res = await adminFetch(`/api/stylists/${stylistId}/stats`);
   if (!res.ok) throw new Error("Failed to fetch stylist stats");
   return res.json();
 }
 
 export async function updateOrderPrice(orderId: string, price: string) {
-  const res = await fetch(`/api/admin/orders/${orderId}/update-price`, {
+  const res = await adminFetch(`/api/admin/orders/${orderId}/update-price`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ price }),
@@ -48,13 +74,13 @@ export async function updateOrderPrice(orderId: string, price: string) {
 }
 
 export async function getSettings(): Promise<Settings> {
-  const res = await fetch("/api/settings");
+  const res = await adminFetch("/api/settings");
   if (!res.ok) throw new Error("Failed to fetch settings");
   return res.json();
 }
 
 export async function updateSettings(data: Partial<Settings>): Promise<Settings> {
-  const res = await fetch("/api/settings", {
+  const res = await adminFetch("/api/settings", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -70,7 +96,7 @@ export async function getWebhookUrls(): Promise<{ vagaroWebhookUrl: string; shop
 }
 
 export async function syncStylistsFromVagaro(): Promise<{ message: string; stylists: any[]; businessId?: string }> {
-  const res = await fetch("/api/vagaro/sync-stylists", {
+  const res = await adminFetch("/api/vagaro/sync-stylists", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
   });
@@ -82,7 +108,7 @@ export async function syncStylistsFromVagaro(): Promise<{ message: string; styli
 }
 
 export async function syncShopifyProducts(): Promise<{ message: string; results: any[] }> {
-  const res = await fetch("/api/shopify/sync-products", {
+  const res = await adminFetch("/api/shopify/sync-products", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
   });
@@ -94,7 +120,7 @@ export async function syncShopifyProducts(): Promise<{ message: string; results:
 }
 
 export async function setStylistPin(stylistId: string, pin: string): Promise<{ message: string }> {
-  const res = await fetch(`/api/stylists/${stylistId}/pin`, {
+  const res = await adminFetch(`/api/stylists/${stylistId}/pin`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ pin }),
@@ -107,7 +133,7 @@ export async function setStylistPin(stylistId: string, pin: string): Promise<{ m
 }
 
 export async function setAdminPin(pin: string): Promise<{ message: string }> {
-  const res = await fetch('/api/admin/set-admin-pin', {
+  const res = await adminFetch('/api/admin/set-admin-pin', {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ pin }),
@@ -120,7 +146,7 @@ export async function setAdminPin(pin: string): Promise<{ message: string }> {
 }
 
 export async function deleteStylist(stylistId: string): Promise<{ message: string }> {
-  const res = await fetch(`/api/stylists/${stylistId}`, {
+  const res = await adminFetch(`/api/stylists/${stylistId}`, {
     method: "DELETE",
   });
   if (!res.ok) {
@@ -139,13 +165,13 @@ export interface CommissionTier {
 }
 
 export async function getCommissionTiers(stylistId: string): Promise<CommissionTier[]> {
-  const res = await fetch(`/api/stylists/${stylistId}/commission-tiers`);
+  const res = await adminFetch(`/api/stylists/${stylistId}/commission-tiers`);
   if (!res.ok) throw new Error("Failed to fetch commission tiers");
   return res.json();
 }
 
 export async function setCommissionTiers(stylistId: string, tiers: Omit<CommissionTier, "id" | "stylistId">[]): Promise<CommissionTier[]> {
-  const res = await fetch(`/api/stylists/${stylistId}/commission-tiers`, {
+  const res = await adminFetch(`/api/stylists/${stylistId}/commission-tiers`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ tiers }),
@@ -207,7 +233,7 @@ export async function getAdminTimeEntries(filters?: {
   if (filters?.startDate) params.set("startDate", filters.startDate);
   if (filters?.endDate) params.set("endDate", filters.endDate);
   
-  const res = await fetch(`/api/admin/timeclock/entries?${params}`);
+  const res = await adminFetch(`/api/admin/timeclock/entries?${params}`);
   if (!res.ok) throw new Error("Failed to fetch time entries");
   return res.json();
 }
@@ -217,7 +243,7 @@ export async function createAdminTimeEntry(data: {
   clockIn: string;
   clockOut?: string;
 }): Promise<TimeEntry> {
-  const res = await fetch("/api/admin/timeclock/entries", {
+  const res = await adminFetch("/api/admin/timeclock/entries", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -233,7 +259,7 @@ export async function updateAdminTimeEntry(id: string, data: {
   clockIn?: string;
   clockOut?: string | null;
 }): Promise<TimeEntry> {
-  const res = await fetch(`/api/admin/timeclock/entries/${id}`, {
+  const res = await adminFetch(`/api/admin/timeclock/entries/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -246,7 +272,7 @@ export async function updateAdminTimeEntry(id: string, data: {
 }
 
 export async function deleteAdminTimeEntry(id: string): Promise<{ message: string }> {
-  const res = await fetch(`/api/admin/timeclock/entries/${id}`, {
+  const res = await adminFetch(`/api/admin/timeclock/entries/${id}`, {
     method: "DELETE",
   });
   if (!res.ok) {
@@ -274,7 +300,7 @@ export async function getTimeclockReport(
   params.set("endDate", endDate);
   if (stylistId) params.set("stylistId", stylistId);
   
-  const res = await fetch(`/api/admin/timeclock/report?${params}`);
+  const res = await adminFetch(`/api/admin/timeclock/report?${params}`);
   if (!res.ok) throw new Error("Failed to fetch timeclock report");
   return res.json();
 }
@@ -303,7 +329,7 @@ export async function getCommissionReport(
   params.set("endDate", endDate);
   if (stylistId) params.set("stylistId", stylistId);
   
-  const res = await fetch(`/api/admin/commission-report?${params}`);
+  const res = await adminFetch(`/api/admin/commission-report?${params}`);
   if (!res.ok) throw new Error("Failed to fetch commission report");
   return res.json();
 }
@@ -320,7 +346,7 @@ export async function getAdminOrders(filters: {
   if (filters.stylistId) params.set("stylistId", filters.stylistId);
   if (filters.includeVoided) params.set("includeVoided", "true");
   
-  const res = await fetch(`/api/admin/orders?${params}`);
+  const res = await adminFetch(`/api/admin/orders?${params}`);
   if (!res.ok) throw new Error("Failed to fetch orders");
   return res.json();
 }
@@ -333,7 +359,7 @@ export async function createManualOrder(data: {
   tipAmount?: string;
   notes?: string;
 }): Promise<Order> {
-  const res = await fetch("/api/admin/orders", {
+  const res = await adminFetch("/api/admin/orders", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -346,7 +372,7 @@ export async function createManualOrder(data: {
 }
 
 export async function voidOrder(id: string, reason: string): Promise<Order> {
-  const res = await fetch(`/api/admin/orders/${id}/void`, {
+  const res = await adminFetch(`/api/admin/orders/${id}/void`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ reason }),
@@ -359,7 +385,7 @@ export async function voidOrder(id: string, reason: string): Promise<Order> {
 }
 
 export async function restoreOrder(id: string): Promise<Order> {
-  const res = await fetch(`/api/admin/orders/${id}/restore`, {
+  const res = await adminFetch(`/api/admin/orders/${id}/restore`, {
     method: "POST",
   });
   if (!res.ok) {
@@ -390,7 +416,7 @@ export async function getCommissionAdjustments(filters?: {
   if (filters?.periodStart) params.set("periodStart", filters.periodStart);
   if (filters?.periodEnd) params.set("periodEnd", filters.periodEnd);
   
-  const res = await fetch(`/api/admin/commission-adjustments?${params}`);
+  const res = await adminFetch(`/api/admin/commission-adjustments?${params}`);
   if (!res.ok) throw new Error("Failed to fetch adjustments");
   return res.json();
 }
@@ -403,7 +429,7 @@ export async function createCommissionAdjustment(data: {
   reason: string;
   orderId?: string;
 }): Promise<CommissionAdjustment> {
-  const res = await fetch("/api/admin/commission-adjustments", {
+  const res = await adminFetch("/api/admin/commission-adjustments", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -416,7 +442,7 @@ export async function createCommissionAdjustment(data: {
 }
 
 export async function deleteCommissionAdjustment(id: string): Promise<{ message: string }> {
-  const res = await fetch(`/api/admin/commission-adjustments/${id}`, {
+  const res = await adminFetch(`/api/admin/commission-adjustments/${id}`, {
     method: "DELETE",
   });
   if (!res.ok) {
@@ -438,13 +464,13 @@ export async function getAppointments(filters: {
   if (filters.stylistId) params.set("stylistId", filters.stylistId);
   if (filters.status) params.set("status", filters.status);
   
-  const res = await fetch(`/api/admin/appointments?${params}`);
+  const res = await adminFetch(`/api/admin/appointments?${params}`);
   if (!res.ok) throw new Error("Failed to fetch appointments");
   return res.json();
 }
 
 export async function cancelAppointment(id: string, reason?: string): Promise<Order> {
-  const res = await fetch(`/api/admin/appointments/${id}/cancel`, {
+  const res = await adminFetch(`/api/admin/appointments/${id}/cancel`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ reason }),
@@ -457,7 +483,7 @@ export async function cancelAppointment(id: string, reason?: string): Promise<Or
 }
 
 export async function restoreAppointment(id: string): Promise<Order> {
-  const res = await fetch(`/api/admin/appointments/${id}/restore`, {
+  const res = await adminFetch(`/api/admin/appointments/${id}/restore`, {
     method: "POST",
   });
   if (!res.ok) {
@@ -468,7 +494,7 @@ export async function restoreAppointment(id: string): Promise<Order> {
 }
 
 export async function updateAppointmentDate(id: string, appointmentDate: string): Promise<Order> {
-  const res = await fetch(`/api/admin/appointments/${id}`, {
+  const res = await adminFetch(`/api/admin/appointments/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ appointmentDate }),

@@ -1,5 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
+import { randomBytes } from "crypto";
 import { storage, getPayPeriod } from "./storage";
 import { ShopifyClient } from "./shopify";
 import { VagaroClient } from "./vagaro";
@@ -14,11 +15,41 @@ declare module "express-session" {
   }
 }
 
-function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  if (!req.session.adminId) {
-    return res.status(401).json({ error: "Admin authentication required" });
+const adminTokens = new Map<string, { adminId: string; adminUsername: string; expiresAt: number }>();
+
+function generateAdminToken(adminId: string, adminUsername: string): string {
+  const token = randomBytes(32).toString('hex');
+  adminTokens.set(token, {
+    adminId,
+    adminUsername,
+    expiresAt: Date.now() + 8 * 60 * 60 * 1000,
+  });
+  return token;
+}
+
+function cleanExpiredTokens() {
+  const now = Date.now();
+  for (const [token, data] of adminTokens) {
+    if (data.expiresAt < now) adminTokens.delete(token);
   }
-  next();
+}
+setInterval(cleanExpiredTokens, 60 * 60 * 1000);
+
+function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (req.session.adminId) {
+    return next();
+  }
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    const tokenData = adminTokens.get(token);
+    if (tokenData && tokenData.expiresAt > Date.now()) {
+      req.session.adminId = tokenData.adminId;
+      req.session.adminUsername = tokenData.adminUsername;
+      return next();
+    }
+  }
+  return res.status(401).json({ error: "Admin authentication required" });
 }
 
 function sanitizeStylist(stylist: Stylist) {
@@ -1399,7 +1430,8 @@ export async function registerRoutes(
       }
       req.session.adminId = user.id;
       req.session.adminUsername = user.username;
-      res.json({ message: "Login successful", user: { id: user.id, username: user.username } });
+      const token = generateAdminToken(user.id, user.username);
+      res.json({ message: "Login successful", user: { id: user.id, username: user.username }, token });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -1481,8 +1513,9 @@ export async function registerRoutes(
       const adminUser = users[0];
       req.session.adminId = adminUser.id;
       req.session.adminUsername = adminUser.username;
+      const token = generateAdminToken(adminUser.id, adminUser.username);
       console.log(`[Admin] Auto-authenticated via Shopify embed for shop: ${shop}`);
-      res.json({ message: "Authenticated via Shopify", user: { id: adminUser.id, username: adminUser.username } });
+      res.json({ message: "Authenticated via Shopify", user: { id: adminUser.id, username: adminUser.username }, token });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -2144,7 +2177,8 @@ export async function registerRoutes(
       const user = await storage.createUser({ username, password: passwordHash });
       req.session.adminId = user.id;
       req.session.adminUsername = user.username;
-      res.json({ message: "Admin created successfully", user: { id: user.id, username: user.username } });
+      const token = generateAdminToken(user.id, user.username);
+      res.json({ message: "Admin created successfully", user: { id: user.id, username: user.username }, token });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
